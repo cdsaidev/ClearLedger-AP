@@ -1,47 +1,56 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
-import {Theme, withTheme} from 'react-native-paper';
 import CreateAccount from './CreateAccount';
 import ForgotPassword from './ForgotPassword';
 import PhoneSignIn from './PhoneSignIn';
 import SignIn from './SignIn';
-
-interface Props {
-  theme: Theme;
-}
-
+import theme from '../theme'
+import { StyleSheet, TouchableWithoutFeedback, Button, View,TouchableOpacity,Dimensions } from 'react-native';
+import Icon from 'react-native-vector-icons/FontAwesome';
 const Stack = createStackNavigator();
 
-function SignedOutStack({theme}: Props) {
+function SignedOutStack() {
+
   return (
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{
-          // headerShown: false,
+         
+          headerTitle:"",
+          headerBackTitle:"",            
+          headerBackTitleVisible:false,
+          headerTransparent:true,
           headerStyle: {
-            backgroundColor: theme.colors.primary,
+            height: 100,
+            backgroundColor: theme.colors.light.background,
           },
-          headerTintColor: theme.colors.accent,
+          headerLeft: ({onPress,canGoBack}) => {
+            
+            return  canGoBack ? ( <TouchableOpacity 
+            style={styles.back}
+                 onPress={onPress} >
+                <Icon name="long-arrow-left" size={24} color="#000" /> 
+            </TouchableOpacity> ) : null
+          }  ,
+          headerTintColor: theme.colors.light.text.heading,
         }}>
         <Stack.Screen
           name="SignIn"
           component={SignIn}
         />
-        <Stack.Screen
-          name="CreateAccount"
-          options={{title: 'Create Account'}}
-          component={CreateAccount}
-        />
-        <Stack.Screen
-          name="ForgotPassword"
-          component={ForgotPassword}
-          options={{title: 'Forgot Password'}}
-        />
+  
         <Stack.Screen name="PhoneSignIn" component={PhoneSignIn} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+const styles = StyleSheet.create({
 
-export default withTheme(SignedOutStack);
+  back: {
+    marginLeft:22,
+    padding:14
+  }
+});
+
+export default SignedOutStack;

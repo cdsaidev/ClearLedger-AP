@@ -18,15 +18,16 @@ function Facebook() {
   );
 
   async function handleFacebook() {
-    if (!loading && user) {
+    if (!loading) {
       setLoading(true);
 
       try {
-        if (variant === 'UNLINK') {
+        if (variant === 'UNLINK' && user) {
           await user.unlink(PROVIDER_ID);
         } else {
           const {isCancelled} = await LoginManager.logInWithPermissions([
             'public_profile',
+            'email'
           ]);
 
           if (isCancelled) {
@@ -45,7 +46,7 @@ function Facebook() {
               accessToken,
             );
 
-            if (variant === 'LINK') {
+            if (variant === 'LINK' && user) {
               await user.linkWithCredential(credential);
             } else if (variant === 'SIGN_IN') {
               await auth().signInWithCredential(credential);

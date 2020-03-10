@@ -4,7 +4,7 @@ import {createContext, ReactNode, useEffect, useState} from 'react';
 import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {Provider} from 'react-native-paper';
 
-import theme from './theme';
+import {paperTheme} from './theme';
 import SignedInStack from './signed-in/Stack';
 import SignedOutStack from './signed-out/Stack';
 
@@ -62,7 +62,7 @@ function App() {
   }
 
   function container(children: ReactNode | ReactNode[]) {
-    return <Provider theme={theme}>{children}</Provider>;
+    return <Provider theme={paperTheme}>{children}</Provider>;
   }
 
   return container(

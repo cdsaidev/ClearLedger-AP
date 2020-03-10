@@ -122,13 +122,13 @@ function Phone() {
       </Button>
 
       <Paragraph style={styles.paragraph}>Enter your phone number:</Paragraph>
-      <TextInput
+      {/* <TextInput
         keyboardType="number-pad"
         mode="outlined"
         label="Phone Number"
         value={number}
         onChangeText={handleNumber}
-      />
+      /> */}
 
       <Button
         style={styles.submit}
@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   paragraph: {
+    fontFamily: 'OpenSans',
     marginBottom: 5,
   },
   button: {
