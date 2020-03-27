@@ -21,7 +21,7 @@ function SwipeableCard({ items, onComplete,onSwipeUp, onSwipeLeft, onSwipeRight 
    
 
    // Card Released
-    useLayoutEffect(() => {
+    useEffect(() => {
         if(currentIndex != items.length - 1) {
             console.log("position changing back...",currentIndex)
             position.current.setValue({ x: 0, y: 0 })
@@ -76,6 +76,9 @@ function SwipeableCard({ items, onComplete,onSwipeUp, onSwipeLeft, onSwipeRight 
         onStartShouldSetPanResponder: (evt: any, gestureState: any) => true,
         onPanResponderMove: (evt, gestureState) => {
             position.current.setValue({ x: gestureState.dx, y: gestureState.dy });
+            if (gestureState.dy < -300) {
+                onSwipeUp(items[currentIndex])
+          } 
         },
         onPanResponderRelease: (evt, gestureState) => {
             if (gestureState.dx > 120) {
@@ -165,7 +168,9 @@ function SwipeableCard({ items, onComplete,onSwipeUp, onSwipeLeft, onSwipeRight 
 
                     {/* LABELS -- END */}
                     {/* MAIN */}
-                    <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)' ,'rgba(0,0,0,0.5)']} style={styles.info}></LinearGradient>
+                    <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)' ,'rgba(0,0,0,0.5)']} style={styles.info}>
+                        <Text style={styles.infoText}>{item.name}, {item.age}</Text>
+                    </LinearGradient>
                     <Image
                         style={styles.image}
                         source={{ uri: item.image }}
@@ -206,7 +211,14 @@ const styles = StyleSheet.create({
         flexDirection:'row',
         height:200,
         width:'100%',
+        paddingTop:20,
+        paddingHorizontal:20,
         borderRadius:20,
+    },
+    infoText: {
+        color:'white',
+        fontFamily:'Open Sans',
+        fontSize:32
     },
     stage: {
         width: '100%',

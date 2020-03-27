@@ -7,6 +7,8 @@ import {Provider} from 'react-native-paper';
 import {paperTheme} from './theme';
 import SignedInStack from './signed-in/Stack';
 import SignedOutStack from './signed-out/Stack';
+import Splash from './SplashScreen';
+
 
 /**
  * Types
@@ -17,7 +19,7 @@ type User = FirebaseAuthTypes.User | null;
  * Context
  */
 export const UserContext = createContext<User>(null);
-
+const wait = (time: any) => new Promise((resolve) => setTimeout(resolve, time));
 function App() {
   const [initializing, setInitializing] = useState(true);
   const [listenUser, setListenUser] = useState(false);
@@ -25,9 +27,11 @@ function App() {
 
   /** Listen for auth state changes */
   useEffect(() => {
-    const authListener = auth().onAuthStateChanged(result => {
+    const authListener = auth().onAuthStateChanged( async result => {
       setUser(result);
       if (initializing && !listenUser) {
+        //2 second animation
+       await wait(4500)
         setInitializing(false);
         setListenUser(true);
       }
@@ -58,9 +62,9 @@ function App() {
   }, [listenUser]);
 
   if (initializing) {
-    return <Text>Loading...</Text>;
+    return <Splash></Splash>
   }
-
+ 
   function container(children: ReactNode | ReactNode[]) {
     return <Provider theme={paperTheme}>{children}</Provider>;
   }

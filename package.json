@@ -48,7 +48,8 @@
     "react-native-shadow": "1.2.2",
     "react-native-snap-carousel": "3.8.4",
     "react-native-status-bar-height": "2.4.0",
-    "react-native-vector-icons": "6.6.0"
+    "react-native-vector-icons": "6.6.0",
+    "react-navigation-transitions": "1.0.12"
   },
   "devDependencies": {
     "@babel/core": "^7.6.2",
