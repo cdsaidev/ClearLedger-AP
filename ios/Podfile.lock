@@ -189,6 +189,9 @@ PODS:
   - EXFileSystem (8.1.0):
     - UMCore
     - UMFileSystemInterface
+  - EXFont (8.1.1):
+    - UMCore
+    - UMFontInterface
   - EXImageLoader (1.0.1):
     - React-Core
     - UMCore
@@ -239,6 +242,9 @@ PODS:
   - Firebase/Firestore (6.13.0):
     - Firebase/CoreOnly
     - FirebaseFirestore (~> 1.8.0)
+  - Firebase/Functions (6.13.0):
+    - Firebase/CoreOnly
+    - FirebaseFunctions (~> 2.5.1)
   - Firebase/Storage (6.13.0):
     - Firebase/CoreOnly
     - FirebaseStorage (~> 3.4.2)
@@ -283,6 +289,10 @@ PODS:
     - "gRPC-C++ (= 0.0.9)"
     - leveldb-library (~> 1.22)
     - nanopb (~> 0.3.901)
+  - FirebaseFunctions (2.5.1):
+    - FirebaseAuthInterop (~> 1.0)
+    - FirebaseCore (~> 6.0)
+    - GTMSessionFetcher/Core (~> 1.1)
   - FirebaseInstanceID (4.2.7):
     - FirebaseCore (~> 6.0)
     - GoogleUtilities/Environment (~> 6.0)
@@ -613,6 +623,11 @@ PODS:
     - Firebase/Firestore (~> 6.13.0)
     - React
     - RNFBApp
+  - RNFBFunctions (6.4.0):
+    - Firebase/Core (~> 6.13.0)
+    - Firebase/Functions (~> 6.13.0)
+    - React
+    - RNFBApp
   - RNFBStorage (6.4.0):
     - Firebase/Core (~> 6.13.0)
     - Firebase/Storage (~> 6.13.0)
@@ -667,6 +682,7 @@ DEPENDENCIES:
   - EXCamera (from `../node_modules/expo-camera/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXFileSystem (from `../node_modules/expo-file-system/ios`)
+  - EXFont (from `../node_modules/expo-font/ios`)
   - EXImageLoader (from `../node_modules/expo-image-loader/ios`)
   - EXImageManipulator (from `../node_modules/expo-image-manipulator/ios`)
   - EXImagePicker (from `../node_modules/expo-image-picker/ios`)
@@ -712,6 +728,7 @@ DEPENDENCIES:
   - "RNFBApp (from `../node_modules/@react-native-firebase/app`)"
   - "RNFBAuth (from `../node_modules/@react-native-firebase/auth`)"
   - "RNFBFirestore (from `../node_modules/@react-native-firebase/firestore`)"
+  - "RNFBFunctions (from `../node_modules/@react-native-firebase/functions`)"
   - "RNFBStorage (from `../node_modules/@react-native-firebase/storage`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNGoogleSignin (from `../node_modules/react-native-google-signin`)
@@ -752,6 +769,7 @@ SPEC REPOS:
     - FirebaseCoreDiagnostics
     - FirebaseCoreDiagnosticsInterop
     - FirebaseFirestore
+    - FirebaseFunctions
     - FirebaseInstanceID
     - FirebaseStorage
     - GoogleAppMeasurement
@@ -785,6 +803,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-constants/ios"
   EXFileSystem:
     :path: "../node_modules/expo-file-system/ios"
+  EXFont:
+    :path: "../node_modules/expo-font/ios"
   EXImageLoader:
     :path: "../node_modules/expo-image-loader/ios"
   EXImageManipulator:
@@ -859,6 +879,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-firebase/auth"
   RNFBFirestore:
     :path: "../node_modules/@react-native-firebase/firestore"
+  RNFBFunctions:
+    :path: "../node_modules/@react-native-firebase/functions"
   RNFBStorage:
     :path: "../node_modules/@react-native-firebase/storage"
   RNGestureHandler:
@@ -921,6 +943,7 @@ SPEC CHECKSUMS:
   EXCamera: e7e250c78f26468028c3866bb5c27e046f2b7b49
   EXConstants: 9f18e9ef229706394f41735d9c7f309d479b36c0
   EXFileSystem: b82693d78de152efe10a77d4aac781f782e10916
+  EXFont: af4c3281cac0bf6ccd8b8a534e9bce6437cc2e17
   EXImageLoader: 5c9d1bf408443ac4d4f44463eaf3b0d03bc70425
   EXImageManipulator: 76857c4c37f983313cb7a8a2c0109e50d1005eb9
   EXImagePicker: 578529114ac96351296daccd493c419bbb347d33
@@ -938,6 +961,7 @@ SPEC CHECKSUMS:
   FirebaseCoreDiagnostics: 2109d10c35e8289b1ee6cabf44d9ffb055620194
   FirebaseCoreDiagnosticsInterop: 296e2c5f5314500a850ad0b83e9e7c10b011a850
   FirebaseFirestore: 52120e2833f804a874ba1a9f59aab864a8ae2286
+  FirebaseFunctions: 5af7c35d1c5e41608fecbb667eb6c4e672e318d0
   FirebaseInstanceID: ebd2ea79ee38db0cb5f5167b17a0d387e1cc7b6e
   FirebaseStorage: 93fe2f8190a01bfb2b2c4932df7d679744c4ef1d
   Folly: 30e7936e1c45c08d884aa59369ed951a8e68cf51
@@ -984,6 +1008,7 @@ SPEC CHECKSUMS:
   RNFBApp: 69781cf10ce41f6f6db789e6264dd80119ef2fb7
   RNFBAuth: 50fcc7826344dc96caad8bc4f5b40a64904297b8
   RNFBFirestore: 69e59e5266927857fa3629715111ee65f4de1cd0
+  RNFBFunctions: 42eb4afb067cd496523a24678b7a582262f6ecc5
   RNFBStorage: 24097a1d18534b9c3559f862b8d18365cd573c2c
   RNGestureHandler: 8f09cd560f8d533eb36da5a6c5a843af9f056b38
   RNGoogleSignin: 6baed9bb19c9c54614bef63bdc55c381b4e33c44

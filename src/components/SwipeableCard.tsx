@@ -6,14 +6,15 @@ import { useCountRenders } from '../util/performance';
 import LinearGradient from 'react-native-linear-gradient';
 import { TouchableWithoutFeedback } from 'react-native-gesture-handler';
 import ImageGallery from './ImageGallery';
+import { Profile } from '../entities/profiles/model';
 
 export type Handle<T> = T extends ForwardRefExoticComponent<RefAttributes<infer T2>> ? T2 : never;
 interface Props {
-    items: any[]
+    items: Profile[]
     onComplete: () => void;
-    onSwipeUp: (item: any) => void;
+    onSwipeUp: (item: Profile) => void;
     onSwipeLeft: (item: any) => void;
-    onSwipeRight: (item: any) => void;
+    onSwipeRight: (item: Profile) => void;
     // placeholder :() => JSX.Element;
 }
 
@@ -142,7 +143,7 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
                     duration:25,
                     easing:(e) => 10
                     // restDisplacementThreshold: 40
-                }).start(onSwipeComplete)
+                }).start(() => {onSwipeComplete(); onSwipeRight(items[currentIndex])})
 
             } else if (gestureState.dx < -120) {
 
@@ -168,7 +169,7 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
     
 
     return <Fragment>
-        {items.map((item: any, i: number) => {
+        {items.map((item: Profile, i: number) => {
             if (i > currentIndex) {
                 // past viewed cards in stack
                 return null;
@@ -176,7 +177,7 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
                 // CURRENT CARD AT TOP OF STACK.
                 return <Animated.View
                     {...panResponder.panHandlers}
-                    key={item.id}
+                    key={item.uid}
                     style={[styles.stage, rotateAndTranslate.current]}>
                     {/* Tappable Gallery Controls */}
                     <View shouldRasterizeIOS style={[styles.stage, {
@@ -186,7 +187,7 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
                         shadowOpacity: 0.10,
                         shadowRadius: 4,
 
-                        elevation: 1,
+                        elevation: 5,
                         shadowOffset: {
                             height: 10,
                             width: 0
@@ -255,14 +256,14 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
                             <Text style={styles.infoText}>{item.name}, {item.age}</Text>
                         </LinearGradient>
 
-                        <ImageGallery key={item.id} ref={tappableImageGalleryRef} images={item.images} id={item.id} />
+                        <ImageGallery key={item.uid} ref={tappableImageGalleryRef} images={item.images || []} id={item.uid} />
                         {/* {cachedImageGallery(item)} */}
                     </View>
                 </Animated.View>
             } else if ((i == (currentIndex - 1))) {
                 // NEXT CARD IN STACK
                 return <Animated.View
-                    key={item.id}
+                    key={item.uid}
                     style={[styles.stage, {
                         // opacity: nextCardOpacity.current,
                         //  top: 1.1 * (currentIndex + i),
@@ -278,7 +279,7 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
                         shadowOpacity: 0.10,
                         shadowRadius: 4,
 
-                        elevation: 1,
+                        elevation: 5,
                         shadowOffset: {
                             height: 10,
                             width: 0
@@ -289,7 +290,7 @@ function SwipeableCard({ items, onComplete, onSwipeUp, onSwipeLeft, onSwipeRight
                         <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.5)']} style={styles.info}>
                             <Text style={styles.infoText}>{item.name}, {item.age}</Text>
                         </LinearGradient>
-                        <ImageGallery key={item.id} ref={tappableImageGalleryRef} images={item.images} id={item.id} />
+                        <ImageGallery key={item.uid} ref={tappableImageGalleryRef} images={item.images || []} id={item.uid} />
                         {/* {cachedImageGallery(item)} */}
            
                     </View>

@@ -2,6 +2,7 @@ import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import { useContext } from 'react';
 import {UserContext,User} from '../App'
 import {Image} from 'react-native'
+import { ProfileContext,ConnectionsContext, ChatContext } from '../signed-in/Stack';
 
 type ProviderID = 'google.com' | 'facebook.com';
 
@@ -31,7 +32,18 @@ export const useSession = () => {
   const user  = useContext(UserContext) as User;
   return user;
 };
-
+export const useProfile = () => {
+  const profile  = useContext(ProfileContext)
+  return profile
+}
+export const useConnections = () => {
+  const connections  = useContext(ConnectionsContext)
+  return connections
+}
+export const useChats = () => {
+  const chats = useContext(ChatContext)
+  return chats
+}
 export function getProviderButtonTitle(
   user: FirebaseAuthTypes.User | null,
   providerID: ProviderID,
