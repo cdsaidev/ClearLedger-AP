@@ -18,10 +18,11 @@ import GlobalTheme from '../../theme'
 //@ts-ignore
 import ToggleSwitch from 'toggle-switch-react-native'
 import CustomButton from '../../components/CustomButton';
-import FloatingOptionSelector from '../../components/FloatingOptionSelector'
 import { useProfile } from '../../util/helpers';
 import { updateProfile } from '../../util/firebase';
 import { TouchableWithoutFeedback } from 'react-native-gesture-handler';
+import FloatingOptionSelector from '../../components/FloatingOptionSelector'
+
 import DropDownPicker from 'react-native-dropdown-picker';
 interface Props {
   navigation: any
@@ -137,7 +138,7 @@ function Settings({ navigation }: Props) {
               color={'#0A0F3D'}
               solid={true}
               loading={false}
-              onPress={() => { }}
+              onPress={() => { navigation.navigate('AccountDetails') }}
               disabled={false}
             >
               Account Details

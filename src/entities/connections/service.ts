@@ -72,6 +72,6 @@ export class ConnectionService {
         const {likedBy} = this.myProfile
        return likedBy?.map(x => x.user).filter((user:string) => {
             return this.shouldDisplay(user)
-        })
+        }) || []
     }
 }

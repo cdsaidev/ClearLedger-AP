@@ -94,7 +94,7 @@ export default class FloatingOptionSelector extends React.Component {
 
                 <TouchableWithoutFeedback onPress={this.toggleMenu}>
                     <Animated.View style={[styles.button,this.props.style, styles.menu, rotation]}>
-                    <Icon name="mars" size={20} color="white" />
+                    <Icon name="random" size={20} color="white" />
                     </Animated.View>
                 </TouchableWithoutFeedback>
             </View>

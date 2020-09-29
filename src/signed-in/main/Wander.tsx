@@ -51,42 +51,44 @@ function Wander({ theme, navigation }: Props) {
   if (!user) {
     return null;
   }
+
+
+// !profile changes
   useEffect(() => {
     console.log("am i ever ready??")
-    if(ready && profile)
-      loadWanderers()
+    // * refresh wanderer request due to profile changes.
+      // * load more wanderes with transactions NOT being cached.
+    if(ready && profile) loadWanderers(true)
+// * --- setting properties on profiles that affect results caching
+  }, [ready,profile?.top1,profile?.desiredSex,profile?.homeLocation,profile?.ageRange,profile?.maximumDistance,profile?.placesToGo])
 
-  }, [ready,profile])
-  useEffect(()=> {
-    console.log('changed?')
-  },[profile])
-//  useEffect(() => {
-//   //  profile exists/ or necessary information to refresh search has been altered.
-//     loadWanderers()
-//  },[profile, profile && profile!.top1])
-// !loading wanderers first time!
-  const loadWanderers = async () => {
-    console.log("connections",connections)
-    if(ready && wanderers.length == 0 && profile && connections) {
-     let x = await  next()
+
+
+  const loadWanderers = async (reset = false) => {
+      setLoadingWanderers(true)
+        let x = await  next(reset)
         let profiles = x.map( doc => { return {uid:doc.id,...doc.data()} as Profile })
        
         let connector = new ConnectionService(connections!,profile!)
         let validConnections = profiles.filter(profile => connector!.shouldDisplay(profile.uid!))
         console.log(validConnections,"the connections",profiles)
+        // * no more valid connections!
         if(validConnections.length == 0) { 
+          // * clear existing connections which are now invalid.
           setNoWander(true)
-          
+          setWanderers([])
         } else{
           setNoWander(false)
           setWanderers(validConnections)
         }
-          
-      }
+        setLoadingWanderers(false)
     }
 
+    // * card stack is asking for more people.
   const noMorePeople = () => {
-
+  
+    // * load more wanderes with transactions being cached.
+    loadWanderers(false)
   }
   const showProfile = (user: Profile) => {
     navigation.navigate('PublicProfile', { user })
@@ -218,7 +220,7 @@ function Wander({ theme, navigation }: Props) {
 
         <SafeAreaView style={styles.loadingContent}>
           
-          { noWander ? <></>
+          { !loadingWanderers ? <></>
           
         :  
         <LottieView

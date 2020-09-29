@@ -35,6 +35,10 @@ export interface Profile {
     maximumDistance:number;
     interests?:any[];
     age: number;
+    dob?: any;
+    referrals:string[];
+    referredBy?:string;
+    referralCode:string;
     name:string;
     email:string;
     defaultLanguage:string;

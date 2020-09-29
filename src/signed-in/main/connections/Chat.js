@@ -57,11 +57,10 @@ const Chat = (props) => {
     useEffect(() => {
       // react native load data when we click on button and we see freeze button
       //InteractionManger helps to load data after interacting screen..
-      if(profile && connections){
+      if(profile && connections != null){
         InteractionManager.runAfterInteractions(async () => {
-          const { chatUsers } = require("./res/data/data")
+    
           let connector = new ConnectionService(connections,profile)
-         
           let profiles = await Promise.all(connector.existingConnections().map(userAt => getProfile(userAt.user)))
          
           let potentialConnectionProfiles = await Promise.all(connector.potentialConnections().map(user => {

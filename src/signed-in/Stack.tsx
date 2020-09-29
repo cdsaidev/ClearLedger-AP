@@ -22,6 +22,10 @@ import { Chat as ChatModel } from '../entities/chats/model'
 import { useProfile, useConnections, useChats } from '../util/firebase';
 import Dashboard from './main/connections/Dashboard';
 import ChatScreen from './main/connections/ChatScreen';
+import AccountDetails from './main/AccountDetails';
+import InviteFriends from './main/InviteFriends';
+import MatchSettings from './main/connections/MatchSettings';
+import ReportUser from './main/connections/ReportUser';
 enableScreens();
 interface Props {
   theme: Theme;
@@ -115,6 +119,10 @@ function SignedInStack() {
 
               />
               <Stack.Screen name="Settings" component={Settings} />
+              <Stack.Screen name="AccountDetails" component={AccountDetails} />
+              <Stack.Screen name="InviteFriends" component={InviteFriends} />
+              <Stack.Screen name="MatchSettings" component={MatchSettings} />
+              <Stack.Screen name="ReportUser" component={ReportUser} />
             </Stack.Navigator>
           </NavigationContainer>
         </ChatContext.Provider>

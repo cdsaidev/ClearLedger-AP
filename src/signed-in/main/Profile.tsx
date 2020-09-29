@@ -76,6 +76,7 @@ const items = [
 function Profile({ theme, route, navigation }: Props) {
 
     const profile = useProfile()
+    const [currentProfile, updateCurrentProfile] = useState<ProfileType | null>(null)
     const tappableImageGalleryRef = useRef(null)
     const imageCarouselRef = useRef(null)
     const [editingMode, setEditingMode] = useState(false)
@@ -83,7 +84,7 @@ function Profile({ theme, route, navigation }: Props) {
     const [pickingPhoto, setPickingPhoto] = useState(false)
     const photoUri = useRef<ProfileImageType | null>(null)
     const [visible, setVisible] = useState(false)
-    const [currentProfile, updateCurrentProfile] = useState<ProfileType | null>(null)
+
     const addingPhoto = useRef(false)
     const [addingInterests, setAddingInterests] = useState(false)
     const [selectedLanguages, setSelectedLanguages] = useState([]) as any
@@ -453,7 +454,7 @@ function Profile({ theme, route, navigation }: Props) {
 
 
                                 {currentProfile?.placesToGo && currentProfile!.placesToGo.map((e) => {
-                                    return <BubbleTag onSelect={() => { }} heading={e.formatted_address} >
+                                    return <BubbleTag key={e.formatted_address} onSelect={() => { }} heading={e.formatted_address} >
                                         <Text style={[styles.text, { color: 'white' }]}>Arrival: {e.meta.arrival}</Text>
                                     </BubbleTag>
                                 })}
@@ -483,7 +484,7 @@ function Profile({ theme, route, navigation }: Props) {
 
 
                                 {currentProfile?.interests && currentProfile!.interests.map((e) => {
-                                    return <BubbleTag onSelect={() => { }} heading={e.title} >
+                                    return <BubbleTag key={e.title} onSelect={() => { }} heading={e.title} >
 
                                     </BubbleTag>
                                 })}
@@ -528,14 +529,14 @@ function Profile({ theme, route, navigation }: Props) {
                             </View>
                             <View style={[layout.row]}>
                                 {currentProfile && currentProfile.languages.map(l => {
-                                    return editingMode ? <TouchableOpacity onLongPress={() => {
+                                    return editingMode ? <TouchableOpacity key={l} onLongPress={() => {
                                         setSelectedLanguage(l)
                                         setRemovingLanguage(true)
                                     }}>
                                         <View style={{ padding: 5, borderRadius: 5, backgroundColor: 'rgba(166,166,166,0.8)', marginRight: 9, paddingHorizontal: 25 }}>
                                             <Text style={[styles.text, { color: 'white' }]}>{l}</Text>
                                         </View>
-                                    </TouchableOpacity> : <View style={{ padding: 5, borderRadius: 5, backgroundColor: 'rgba(166,166,166,0.8)', marginRight: 9, paddingHorizontal: 25 }}>
+                                    </TouchableOpacity> : <View key={l} style={{ padding: 5, borderRadius: 5, backgroundColor: 'rgba(166,166,166,0.8)', marginRight: 9, paddingHorizontal: 25 }}>
                                             <Text style={[styles.text, { color: 'white' }]}>{l}</Text>
                                         </View>
                                 })}
@@ -607,13 +608,13 @@ function Profile({ theme, route, navigation }: Props) {
                             <View style={[layout.row, { flex: 1, marginVertical: 10, flexWrap: 'wrap' }]}>
 
                                 {currentProfile?.placesBeen && ["Gibraltar,Gibraltar", "Kansas,Texas", "Croatia,Zalgreb"].map((e) => {
-                                    return <BubbleTag onSelect={() => { }} heading={e} >
+                                    return <BubbleTag key={e} onSelect={() => { }} heading={e} >
                                         <Text style={[styles.text, { color: 'white' }]}>Dates usually show up here</Text>
                                     </BubbleTag>
                                 })}
 
                                 {currentProfile?.placesToGo && currentProfile!.placesBeen.map((e) => {
-                                    return <BubbleTag onSelect={() => { }} heading={e.formatted_address} >
+                                    return <BubbleTag key={e.formatted_address} onSelect={() => { }} heading={e.formatted_address} >
                                         <Text style={[styles.text, { color: 'white' }]}>Arrival: {e.meta.arrival}</Text>
                                     </BubbleTag>
                                 })}

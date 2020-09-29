@@ -90,7 +90,9 @@ export const useProfilePagination = (limit: number = 50) => {
         }
     }, [myProfile])
 
-    const runTransaction = async () => {
+    const runTransaction = async (reset = false) => {
+        // * reset the transaction from scratch due to algo changes.
+        if(reset) lastVisible.current = null;
         let query;
         const profileTopMatchNames = myProfile!.placesToGo && myProfile!.placesToGo.length ? [...myProfile!.placesToGo.map(l => l.formatted_address),myProfile!.homeLocation.formatted_address] : [myProfile!.homeLocation.formatted_address]
         if (lastVisible.current) {

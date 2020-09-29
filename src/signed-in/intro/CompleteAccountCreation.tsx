@@ -23,7 +23,8 @@ import UserInfo from './Info';
 import { useProfile } from '../../util/helpers';
 import { ProfileService } from '../../entities/profiles/service';
 import { updateProfile } from '../../util/firebase';
-
+//@ts-ignore
+import referralCodeGenerator from 'referral-code-generator'
 interface Props {
   navigation: NavigationParams;
 }
@@ -174,6 +175,7 @@ async function performProfileUpdate(partial:any){
   }
 
   async function createUserProfile(userCred:FirebaseAuthTypes.UserCredential) {
+    
     try {
       let transaction = await firestore().collection('user-profiles').doc(userCred.user.uid).set({
         email:email,
@@ -184,13 +186,19 @@ async function performProfileUpdate(partial:any){
         placesToGo:[],
         placesBeen:[],
         languages:[],
-        height:150
+        likedBy:[],
+        height:150,
+        referrals:[],
+        referralCode:referralCodeGenerator.custom('lowercase', 6, 6, email.split("@")[0])
       })
       await firestore().collection('user-connections').doc(userCred.user.uid).set({
        unmatched:[],
        disliked:[],
        connections:[]
       })
+      await firestore().collection('user-reports').doc(userCred.user.uid).set({
+     
+       })
       return transaction
     } catch (e) {
       throw(e)

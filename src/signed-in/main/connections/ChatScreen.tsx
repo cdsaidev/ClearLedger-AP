@@ -12,6 +12,8 @@ import {MoneyChat,GalleryChat} from './ChatComponents/ChatType'
 import posed,{Transition} from 'react-native-pose';
 import {moderateScale} from './res/style/scalingUnit'
 import { NavigationParams, SafeAreaView } from 'react-navigation'
+import IconAlt from 'react-native-vector-icons/FontAwesome5';
+import GlobalTheme from '../../../theme'
 import Hero from '../../../components/Hero';
 import { useProfile, useChats, useConnections } from '../../../util/helpers'
 import { message } from '../../../entities/chats/model'
@@ -186,6 +188,9 @@ const ChatScreen = ({route, navigation}:Props) => {
       //   uri,
       //   name : username
       // })
+    } 
+    const showProfile = () => {
+      navigation.navigate('PublicProfile', { user:otherUserProfile })
     }
 
     return (
@@ -200,7 +205,7 @@ const ChatScreen = ({route, navigation}:Props) => {
         {otherUserProfile ? <View style={styles.headerContainer}>
          <View style={styles.firstRow}>
           <MaterialIcon onPress={() => {navigation.goBack()}} name="arrow-left" size={24} color={colors.primary} />
-           <TouchableOpacity activeOpacity={.8} onPress={onProfile} style={styles.userDetail}>
+           <TouchableOpacity activeOpacity={.8} onPress={showProfile} style={styles.userDetail}>
               <View style={[styles.img,{backgroundColor:colors.lightGrey}]}>
                <Image style={styles.img} source={{uri:(otherUserProfile! as Profile).images![0].uri}}/>
               </View>
@@ -209,9 +214,9 @@ const ChatScreen = ({route, navigation}:Props) => {
           </TouchableOpacity>
          </View>
          <View style={styles.secondRow}>
-          <MaterialIcon name="video" size={24} color={colors.primary} />
-          <MaterialIcon onPress={onCall} name="phone" size={24} color={colors.primary} />
-          <MaterialIcon name="dots-horizontal-circle" size={24} color={colors.primary} />
+         <TouchableOpacity activeOpacity={.8} onPress={()=>{ navigation.navigate('MatchSettings',{otherProfile:otherUserProfile})}} style={styles.userDetail}>
+          <IconAlt name="ellipsis-v" color={GlobalTheme.colors.light.text.warning} solid size={24} />
+          </TouchableOpacity>
          </View>
         </View>
         : null}
@@ -319,9 +324,9 @@ const styles = StyleSheet.create({
       },
     secondRow : {
         flexDirection : 'row',
-        width : '40%',
-        justifyContent : 'space-around',
-        alignItems : 'center'
+        width : '10%',
+        justifyContent : 'flex-end',
+        alignItems : 'center',
       },
     img : {
         width : 35,

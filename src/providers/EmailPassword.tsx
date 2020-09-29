@@ -11,7 +11,7 @@ function EmailPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [authCredential,_] = AuthCredential.useData();
-  const [signingUp,setSigningUp] = useState(true)
+  const [signingUp,setSigningUp] = useState(false)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState<string>('');
@@ -201,11 +201,7 @@ function EmailPassword() {
      >
        {loading ? 'Creating Account' : 'Create Account'}
      </CustomButton>
-<TouchableOpacity onPress={() => setSigningUp(false)} >
-<Text style={[layout.heading,{fontSize:16}]}>
-          Already have an account?
-         </Text>
-</TouchableOpacity>
+
     
    </View>
    </>
@@ -220,7 +216,7 @@ function EmailPassword() {
      <View style={[layout.row, layout.header]}>
        <View style={layout.column}>
          <Text style={layout.heading}>
-          Sign in with email
+          Sign in with your email.
          </Text>
        </View>
      </View>
@@ -267,6 +263,11 @@ function EmailPassword() {
      >
        {loading ? 'Sign In' : 'Sign In'}
      </CustomButton>
+     <TouchableOpacity onPress={() => setSigningUp(true)} >
+<Text style={[layout.heading,{fontSize:16,marginTop:5}]}>
+          Need to create an account?
+         </Text>
+</TouchableOpacity>
    </View>
    </>
    
