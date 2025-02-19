@@ -1,1 +1,1 @@
-#FastAPI invoice processing API
+#FastAPI invoice processing API; Exposes the invoice processing pipeline as a REST API.
