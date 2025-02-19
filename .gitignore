@@ -120,5 +120,8 @@ cython_debug/
 # VS Code
 .vscode/
 
-# context_info.txt
+# Ignore the old context file
 context_info.txt
+
+# Include the new context file
+context_info.md
