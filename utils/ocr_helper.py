@@ -1,1 +1,1 @@
-# ocr_helper.py
+# Uses Tesseract or an API (OpenAI, Google Vision) for OCR.
