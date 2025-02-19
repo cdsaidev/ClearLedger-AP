@@ -1,1 +1,1 @@
-# document_parser.py
+# Preprocesses invoice PDFs (OCR, text extraction).
