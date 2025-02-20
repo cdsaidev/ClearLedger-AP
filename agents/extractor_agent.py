@@ -37,7 +37,6 @@ class InvoiceExtractionTool(BaseTool):
             return {"error": str(e), "confidence": 0.0}
 
     def _extract_fields(self, text: str) -> Dict:
-        # Placeholder as fallback
         return {
             "vendor_name": {"value": "ABC Corp Ltd.", "confidence": 0.95},
             "invoice_number": {"value": "INV-2024-001", "confidence": 0.98},
@@ -94,12 +93,20 @@ class InvoiceExtractionAgent(BaseAgent):
             invoice_text = extract_text_from_pdf(document_path)
         else:
             invoice_text = ocr_process_image(document_path)
+        output_parser = StructuredOutputParser.from_response_schemas([
+            ResponseSchema(name="vendor_name", description="Vendor name", type="string"),
+            ResponseSchema(name="invoice_number", description="Invoice number", type="string"),
+            ResponseSchema(name="invoice_date", description="Invoice date (YYYY-MM-DD)", type="string"),
+            ResponseSchema(name="total_amount", description="Total amount", type="string")
+        ])
+        format_instructions = output_parser.get_format_instructions()
         try:
             result = await asyncio.to_thread(self.agent.invoke, {
                 "invoice_text": invoice_text,
                 "agent_scratchpad": "",
                 "tools": [t.name for t in self.tools],
-                "tool_names": ", ".join([t.name for t in self.tools])
+                "tool_names": ", ".join([t.name for t in self.tools]),
+                "format_instructions": format_instructions  # Explicitly pass format_instructions
             })
             extracted_data = result["output"]["data"]
             confidence = result["output"]["confidence"]
