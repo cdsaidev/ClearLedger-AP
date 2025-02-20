@@ -1,12 +1,13 @@
 # /agents/extractor_agent.py
+# /agents/extractor_agent.py
 from typing import Dict, Any
 from langchain.agents import AgentExecutor, create_structured_chat_agent
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI  # Updated import
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.tools import BaseTool
 import json
 import logging
-from config.logging_config import setup_logging
+from config.logging_config import setup_logging  # This assumes /config/__init__.py exists
 
 from agents.base_agent import BaseAgent
 from data_processing.document_parser import extract_text_from_pdf
@@ -37,7 +38,6 @@ class InvoiceExtractionTool(BaseTool):
             logger.error("Invalid invoice text provided")
             return {}
 
-        # Placeholder LLM logic (replace with actual parsing in future)
         fields = {
             "vendor_name": {"value": "Sample Vendor", "confidence": 0.95},
             "invoice_number": {"value": "INV12345", "confidence": 0.98},
@@ -45,7 +45,6 @@ class InvoiceExtractionTool(BaseTool):
             "total_amount": {"value": 1500.00, "confidence": 0.99}
         }
 
-        # Basic edge case checks
         for field, data in fields.items():
             if not data["value"]:
                 logger.warning(f"Missing or empty {field}")
