@@ -11,21 +11,26 @@ from agents.validator_agent import InvoiceValidationAgent
 from agents.matching_agent import PurchaseOrderMatchingAgent
 from agents.human_review_agent import HumanReviewAgent
 
-logger = setup_logging()
+logger = setup_logging(verbose=True)  # Enable verbose logging
 
 class InvoiceProcessingWorkflow:
     def __init__(self):
+        logger.debug("Initializing workflow agents")
         self.extraction_agent = InvoiceExtractionAgent()
         self.validation_agent = InvoiceValidationAgent()
         self.matching_agent = PurchaseOrderMatchingAgent()
         self.review_agent = HumanReviewAgent()
 
     async def _retry_with_backoff(self, func, max_retries=3, base_delay=1):
+        logger.debug(f"Starting retry mechanism with max_retries={max_retries}, base_delay={base_delay}")
         for attempt in range(max_retries):
             try:
-                return await func()
+                result = await func()
+                logger.debug(f"Retry attempt {attempt + 1} succeeded")
+                return result
             except Exception as e:
                 if attempt == max_retries - 1:
+                    logger.error(f"All {max_retries} retries failed: {str(e)}")
                     raise
                 delay = base_delay * (2 ** attempt)
                 logger.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying in {delay}s...")
@@ -33,7 +38,8 @@ class InvoiceProcessingWorkflow:
 
     async def process_invoice(self, document_path: str) -> dict:
         logger.info(f"Starting invoice processing for: {document_path}")
-        
+        logger.debug(f"Processing pipeline initiated for document: {document_path}")
+
         # Step 1: Extract data
         try:
             extracted_data = await self._retry_with_backoff(lambda: self.extraction_agent.run(document_path))
@@ -82,6 +88,7 @@ class InvoiceProcessingWorkflow:
             "review_result": review_result
         }
         logger.info(f"Invoice processing completed: {document_path}")
+        logger.debug(f"Final result: {result}")
         return result
 
 async def main():
