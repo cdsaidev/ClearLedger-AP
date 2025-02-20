@@ -21,7 +21,6 @@ class InvoiceProcessingWorkflow:
         self.review_agent = HumanReviewAgent()
 
     async def _retry_with_backoff(self, func, max_retries=3, base_delay=1):
-        """Retry an async function with exponential backoff."""
         for attempt in range(max_retries):
             try:
                 return await func()
@@ -33,7 +32,6 @@ class InvoiceProcessingWorkflow:
                 await asyncio.sleep(delay)
 
     async def process_invoice(self, document_path: str) -> dict:
-        """Orchestrate extraction, validation, matching, and human review asynchronously."""
         logger.info(f"Starting invoice processing for: {document_path}")
         
         # Step 1: Extract data
@@ -48,6 +46,14 @@ class InvoiceProcessingWorkflow:
         try:
             validation_result = await self._retry_with_backoff(lambda: self.validation_agent.run(extracted_data))
             logger.info(f"Validation completed: {validation_result}")
+            if validation_result.status != "valid":
+                logger.warning(f"Skipping PO matching due to validation failure: {validation_result}")
+                return {
+                    "extracted_data": extracted_data.model_dump(),
+                    "validation_result": validation_result.model_dump(),
+                    "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0},
+                    "review_result": {"status": "skipped", "invoice_data": extracted_data.model_dump()}
+                }
         except Exception as e:
             logger.error(f"Validation failed after retries: {str(e)}")
             return {"status": "error", "message": str(e)}
@@ -60,7 +66,7 @@ class InvoiceProcessingWorkflow:
             logger.error(f"Matching failed after retries: {str(e)}")
             return {"status": "error", "message": str(e)}
 
-        # Step 4: Human review if needed
+        # Step 4: Human review
         try:
             review_result = await self._retry_with_backoff(lambda: self.review_agent.run(extracted_data, validation_result))
             logger.info(f"Review completed: {review_result}")
