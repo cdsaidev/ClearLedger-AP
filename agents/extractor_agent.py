@@ -9,8 +9,7 @@ from langchain.agents import AgentExecutor, create_structured_chat_agent
 from langchain_community.llms import Ollama
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.tools import BaseTool
-import logging
-from config.logging_config import setup_logging
+from config.logging_config import logger  # Import singleton logger
 from agents.base_agent import BaseAgent
 from data_processing.document_parser import extract_text_from_pdf
 from data_processing.ocr_helper import ocr_process_image
@@ -18,8 +17,6 @@ from data_processing.confidence_scoring import compute_confidence_score
 from models.invoice import InvoiceData
 from decimal import Decimal
 from langchain.output_parsers import StructuredOutputParser, ResponseSchema
-
-logger = setup_logging(verbose=True)  # Enable verbose logging
 
 class InvoiceExtractionTool(BaseTool):
     name = "invoice_extraction_tool"
