@@ -1,11 +1,11 @@
-# /agents/extractor_agent.py (updated)
+# /agents/extractor_agent.py
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from typing import Dict, Any
 from langchain.agents import AgentExecutor, create_structured_chat_agent
-from langchain_openai import ChatOpenAI
+from langchain_community.llms import Ollama  # Use local Mistral 7B
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.tools import BaseTool
 import logging
@@ -15,7 +15,6 @@ from data_processing.document_parser import extract_text_from_pdf
 from data_processing.ocr_helper import ocr_process_image
 from data_processing.confidence_scoring import compute_confidence_score
 from models.invoice import InvoiceData
-from config.settings import OPENAI_API_KEY
 from decimal import Decimal
 
 logger = setup_logging()
@@ -36,22 +35,20 @@ class InvoiceExtractionTool(BaseTool):
             return {"error": str(e), "confidence": 0.0}
 
     def _extract_fields(self, text: str) -> Dict:
+        # Placeholder for Day 2; Day 4 will use Mistral 7B for real parsing
         fields = {
-            "vendor_name": {"value": "Sample Vendor", "confidence": 0.95},
-            "invoice_number": {"value": "INV12345", "confidence": 0.98},
-            "invoice_date": {"value": "2025-01-15", "confidence": 0.90},
-            "total_amount": {"value": "1500.00", "confidence": 0.99}
+            "vendor_name": {"value": "ABC Corp Ltd.", "confidence": 0.95},
+            "invoice_number": {"value": "INV-2024-001", "confidence": 0.98},
+            "invoice_date": {"value": "2024-02-18", "confidence": 0.90},
+            "total_amount": {"value": "7595.00", "confidence": 0.99}
         }
-        logger.info("Fields extracted successfully")
+        logger.info("Fields extracted successfully (placeholder)")
         return fields
 
 class InvoiceExtractionAgent(BaseAgent):
     def __init__(self):
         super().__init__()
-        if not OPENAI_API_KEY:
-            logger.error("OPENAI_API_KEY is not set")
-            raise ValueError("OPENAI_API_KEY is not set in config.settings")
-        self.llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY)
+        self.llm = Ollama(model="mistral:7b")  # Local Mistral 7B via Ollama
         self.tools = [InvoiceExtractionTool()]
         self.agent = self._create_extraction_agent()
 
@@ -82,7 +79,12 @@ class InvoiceExtractionAgent(BaseAgent):
             invoice_text = extract_text_from_pdf(document_path)
         else:
             invoice_text = ocr_process_image(document_path)
-        result = self.agent.invoke({"invoice_text": invoice_text, "agent_scratchpad": "", "tools": [t.name for t in self.tools], "tool_names": ", ".join([t.name for t in self.tools])})
+        result = self.agent.invoke({
+            "invoice_text": invoice_text,
+            "agent_scratchpad": "",
+            "tools": [t.name for t in self.tools],
+            "tool_names": ", ".join([t.name for t in self.tools])
+        })
         extracted_data = result["output"]["data"]
         confidence = result["output"]["confidence"]
         invoice_data = InvoiceData(
@@ -99,7 +101,6 @@ if __name__ == "__main__":
     import os
     agent = InvoiceExtractionAgent()
     raw_dir = "data/raw/"
-    # Search subdirectories for PDFs
     invoice_dirs = ["invoices", "test_samples"]
     sample_pdf = None
     for sub_dir in invoice_dirs:
@@ -107,7 +108,7 @@ if __name__ == "__main__":
         if os.path.exists(dir_path):
             pdfs = [f for f in os.listdir(dir_path) if f.lower().endswith(".pdf")]
             if pdfs:
-                sample_pdf = os.path.join(dir_path, pdfs[0])  # Use the first found PDF
+                sample_pdf = os.path.join(dir_path, pdfs[0])
                 break
     if not sample_pdf:
         logger.error("No PDF found in data/raw/invoices/ or data/raw/test_samples/")
