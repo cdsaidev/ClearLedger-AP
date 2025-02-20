@@ -99,11 +99,19 @@ if __name__ == "__main__":
     import os
     agent = InvoiceExtractionAgent()
     raw_dir = "data/raw/"
-    sample_pdf = next((f for f in os.listdir(raw_dir) if f.lower().endswith(".pdf")), None)
+    # Search subdirectories for PDFs
+    invoice_dirs = ["invoices", "test_samples"]
+    sample_pdf = None
+    for sub_dir in invoice_dirs:
+        dir_path = os.path.join(raw_dir, sub_dir)
+        if os.path.exists(dir_path):
+            pdfs = [f for f in os.listdir(dir_path) if f.lower().endswith(".pdf")]
+            if pdfs:
+                sample_pdf = os.path.join(dir_path, pdfs[0])  # Use the first found PDF
+                break
     if not sample_pdf:
-        logger.error("No PDF found in data/raw/")
-        raise FileNotFoundError("No PDF found in data/raw/")
-    sample_pdf = os.path.join(raw_dir, sample_pdf)
+        logger.error("No PDF found in data/raw/invoices/ or data/raw/test_samples/")
+        raise FileNotFoundError("No PDF found in data/raw/invoices/ or data/raw/test_samples/")
     try:
         result = agent.run(sample_pdf)
         print(result.model_dump_json())
