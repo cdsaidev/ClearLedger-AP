@@ -87,7 +87,6 @@ An intelligent invoice processing system leveraging LangChain's multi-agent work
     }
     ```
 
-
 - **Implemented PO Matching**:
     - Created `PurchaseOrderMatchingAgent` for vendor data matching
     - Added fuzzy matching with 0.85 confidence threshold
@@ -120,6 +119,53 @@ An intelligent invoice processing system leveraging LangChain's multi-agent work
     }
     ```
 
+## Performance Improvements
+- **Enhanced Error Handling**:
+    - Updated `workflows/orchestrator.py` with async processing using asyncio
+    - Implemented retry mechanism with exponential backoff (1s, 2s, 4s)
+    - Added comprehensive error logging for extraction, validation, and matching stages
+- **Performance Optimization**:
+    - Reduced logging verbosity in `config/logging_config.py`
+    - Implemented async execution to improve throughput
+    - Added aiofiles for async file handling
+- **Added Human Review Integration**:
+    - Implemented `agents/human_review_agent.py`
+    - Added low-confidence case flagging (threshold: 0.8)
+    - Integrated validation failure handling
+- **Sample Output**:
+    ```json
+    {
+        "extracted_data": {
+            "vendor_name": "ABC Corp Ltd.",
+            "invoice_number": "INV-2024-001",
+            "invoice_date": "2024-02-18",
+            "total_amount": "7595.00",
+            "confidence": 0.955,
+            "po_number": null,
+            "tax_amount": null,
+            "currency": null
+        },
+        "validation_result": {
+            "status": "valid",
+            "errors": {}
+        },
+        "matching_result": {
+            "status": "unmatched",
+            "po_number": null,
+            "match_confidence": 0.0
+        },
+        "review_result": {
+            "status": "approved",
+            "invoice_data": {...}
+        }
+    }
+    ```
+
+**Notes**:
+- Async processing improves performance; Day 3 will fully implement human-in-the-loop UI
+- Anomaly detection can be refined with statistical methods in future iterations
+
+
 ## Setup
 1. Install Dependencies:
     ```bash
@@ -141,5 +187,6 @@ An intelligent invoice processing system leveraging LangChain's multi-agent work
     ```
 
 ## Next Steps
-- Day 3: Enhance error handling, refine anomaly detection with statistical methods, and optionally add RAG for context.
-- Day 4: Implement human-in-the-loop verification for low-confidence cases.
+
+Day 3: Implement human-in-the-loop verification UI for low-confidence cases using FastAPI or Streamlit.
+Day 4: Optionally add a basic frontend for invoice review and submission.
