@@ -1,1 +1,0 @@
-# Assigns confidence scores to extracted invoice data.

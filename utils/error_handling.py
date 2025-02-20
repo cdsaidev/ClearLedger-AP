@@ -1,1 +1,0 @@
-# Logs errors and reroutes failed processing attempts.
