@@ -204,49 +204,51 @@ ollama run mistral:7b "test"
 python workflows/orchestrator.py
 ```
 
+## ✅ Completed (Days 1–6)
+- InvoiceExtractionAgent: Mistral 7B integration, strict JSON parsing, and fallback mechanisms.
+- InvoiceValidationAgent: Validates extracted fields, handles anomalies, and flags errors.
+- PurchaseOrderMatchingAgent: Fuzzy matching with vendor_data.csv, handles mismatches.
+- Human Review API: FastAPI endpoints for manual invoice corrections.
+- FAISS-based RAG: Handles edge cases, indexes error-prone invoices for smarter future parsing.
+- Async Processing & Error Handling: Built-in retries, structured logging, and error tracking.
 
-## Next Steps
+## 🚀 Remaining Workflow (Days 7–10)
 
-Proceed to implement additional Day 6 deliverables focusing on UI enhancements and edge-case handling.
+### Day 7 – Frontend Development & Integration
+- Build a basic frontend using Streamlit or Next.js including:
+  - Invoice upload page
+  - Human review panel
+  - Processed invoice table
+- Integrate the frontend with backend APIs (e.g., review endpoints).
+- Implement performance benchmarking to track processing times, confidence scores, and resource usage.
 
-## 🔜 Next Steps
-### Remaining Tasks (Days 3-10):
+### Day 8 – Deployment & Post-Processing Analytics
+- **Dockerize** the application to containerize all dependencies.
+- Set up a **CI/CD Pipeline** using GitHub Actions for automated testing and deployment.
+- (Optional) Deploy the system using AWS Lambda or GCP Cloud Run.
+- Add post-processing analytics dashboard to visualize trends, anomalies, and key metrics.
 
-#### Day 3:
+### Day 9 – Documentation & Comprehensive Testing
+- Write detailed documentation including:
+  - An updated README with setup instructions
+  - Architecture diagrams (using Mermaid.js or Draw.io)
+  - A performance report detailing token usage, processing times, and accuracy rates
+- Expand test coverage with unit, integration, and load tests, including edge case simulations (e.g., OCR errors, missing fields, duplicate invoices).
+- Final code refactoring and cleanup.
 
-##### Refine error handling (async processing, retry mechanisms).
-##### Expand edge-case testing.
-##### Develop initial human-in-the-loop mechanism (CLI or basic UI).
+### Day 10 – Finalization & Submission
+- Conduct full end-to-end testing of the entire pipeline on diverse invoice samples.
+- Optimize performance by fine-tuning retry logic, async processing, and FAISS indexing.
+- Record a video demo showcasing the system workflow, agent interactions, and performance highlights.
+- Prepare your final submission by:
+  - Pushing the polished code to GitHub
+  - Including all deliverables (documentation, video demo, diagrams)
+  - Drafting and sending the submission email.
 
-#### Day 4:
 
-##### Fully implement human-in-the-loop verification UI (FastAPI + Streamlit).
-##### Add API enhancements: authentication, caching, rate limiting.
-##### Enhance orchestrator with fallback strategies.
-##### Integrate comprehensive monitoring.
+## ✅ Summary
 
-#### Day 5:
+- **Days 1–6:** Core features implemented including extraction, validation, PO matching, error handling, and a human-in-the-loop review mechanism.
+- **Days 7–10:** Focus shifts to frontend development, deployment, comprehensive testing, and final documentation.
 
-##### Develop a basic frontend UI (upload page, review panel, invoice table).
-##### Build API endpoints to support frontend interactions.
-##### Implement performance benchmarking and tracking.
-
-#### Day 6:
-
-##### Dockerize the application.
-##### Set up CI/CD pipelines.
-##### Plan and begin deployment strategy (AWS Lambda/GCP Cloud Run).
-##### Add post-processing analytics (dashboard, anomaly detection visualizations).
-
-#### Day 7:
-
-##### Write detailed documentation (README, architecture diagram, performance report).
-##### Conduct extensive unit, integration, and load testing.
-##### Final code refactoring and cleanup.
-
-#### Day 8:
-
-##### Run full end-to-end testing across the system.
-##### Optimize performance metrics and finalize benchmarks.
-##### Record the final video demo.
-##### Prepare final submission (push to GitHub, compile deliverables, draft submission email).
+---
