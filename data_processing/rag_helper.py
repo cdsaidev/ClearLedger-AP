@@ -1,4 +1,3 @@
-# ...existing code...
 import faiss
 import numpy as np
 import logging
