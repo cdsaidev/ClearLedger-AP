@@ -125,3 +125,6 @@ context_info.txt
 
 # Include the new context file
 context_info.md
+
+# My OpenAI API key
+.env
