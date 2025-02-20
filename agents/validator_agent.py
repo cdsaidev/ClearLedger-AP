@@ -1,18 +1,15 @@
 # /agents/validator_agent.py
-
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 import asyncio
 from datetime import datetime
-from config.logging_config import setup_logging
+from config.logging_config import logger  # Import singleton logger
 from agents.base_agent import BaseAgent
 from models.invoice import InvoiceData
 from models.validation_schema import ValidationResult
 from data_processing.anomaly_detection import AnomalyDetector
-
-logger = setup_logging(verbose=True)  # Enable verbose logging
 
 class InvoiceValidationAgent(BaseAgent):
     def __init__(self):
@@ -24,7 +21,6 @@ class InvoiceValidationAgent(BaseAgent):
         logger.debug(f"Starting validation for invoice: {invoice_data.model_dump()}")
         errors = {}
 
-        # Check missing fields
         logger.debug("Checking for missing required fields")
         if not invoice_data.vendor_name:
             errors["vendor_name"] = "Missing"
@@ -39,7 +35,6 @@ class InvoiceValidationAgent(BaseAgent):
             errors["total_amount"] = "Missing"
             logger.debug("Total amount missing")
         else:
-            # Validate total_amount format and range
             logger.debug(f"Validating total_amount: {invoice_data.total_amount}")
             try:
                 total = float(invoice_data.total_amount)
@@ -50,7 +45,6 @@ class InvoiceValidationAgent(BaseAgent):
                 errors["total_amount"] = "Invalid numeric format"
                 logger.debug("Total amount format invalid")
 
-        # Validate invoice_date format
         if invoice_data.invoice_date:
             logger.debug(f"Validating invoice_date: {invoice_data.invoice_date}")
             try:
@@ -59,13 +53,11 @@ class InvoiceValidationAgent(BaseAgent):
                 errors["invoice_date"] = "Invalid date format (expected YYYY-MM-DD)"
                 logger.debug("Invoice date format invalid")
 
-        # Confidence check
         logger.debug(f"Checking confidence: {invoice_data.confidence}")
         if invoice_data.confidence < 0.8:
             errors["confidence"] = f"Low confidence score: {invoice_data.confidence}"
             logger.debug("Confidence below threshold")
 
-        # Anomaly detection
         logger.debug("Running anomaly detection")
         anomaly_errors = await asyncio.to_thread(self.anomaly_detector.detect_anomalies, invoice_data)
         errors.update(anomaly_errors)
@@ -79,13 +71,6 @@ class InvoiceValidationAgent(BaseAgent):
         logger.info(f"Validation completed: {validation_result}")
         logger.debug(f"Validation result details: status={validation_result.status}, errors={validation_result.errors}")
         return validation_result
-
-# Prompt for future LLM use:
-"""
-You have years of administrative experience as a meticulous financial auditor, renowned for catching every discrepancy with an eagle eye. Validate this invoice data with unparalleled precision, checking for missing fields, format errors, and anomalies, returning a structured result in JSON:
-- status: 'valid' or 'failed'
-- errors: dictionary of issues (if any)
-"""
 
 if __name__ == "__main__":
     async def main():
