@@ -1,16 +1,13 @@
 # /agents/human_review_agent.py
-
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 import asyncio
-from config.logging_config import setup_logging
+from config.logging_config import logger  # Import singleton logger
 from agents.base_agent import BaseAgent
 from models.invoice import InvoiceData
 from models.validation_schema import ValidationResult
-
-logger = setup_logging(verbose=True)  # Enable verbose logging
 
 class HumanReviewAgent(BaseAgent):
     def __init__(self):
@@ -32,14 +29,6 @@ class HumanReviewAgent(BaseAgent):
         logger.info(f"Review result: {review_task}")
         logger.debug(f"Review decision details: {review_task}")
         return review_task
-
-# Prompt for future LLM use:
-"""
-You are a veteran invoice reviewer with decades of experience ensuring financial accuracy across thousands of documents. Review this invoice and its validation result with a keen eye for detail, flagging any issues for human correction if confidence is below 0.8 or validation fails, and return a structured JSON result:
-- status: 'needs_review' or 'approved'
-- invoice_data: the invoice details
-- validation_errors: errors if any (for 'needs_review')
-"""
 
 if __name__ == "__main__":
     async def main():
