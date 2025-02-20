@@ -5,11 +5,11 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 import asyncio
-import aiofiles
 from config.logging_config import setup_logging
 from agents.extractor_agent import InvoiceExtractionAgent
 from agents.validator_agent import InvoiceValidationAgent
 from agents.matching_agent import PurchaseOrderMatchingAgent
+from agents.human_review_agent import HumanReviewAgent
 
 logger = setup_logging()
 
@@ -18,6 +18,7 @@ class InvoiceProcessingWorkflow:
         self.extraction_agent = InvoiceExtractionAgent()
         self.validation_agent = InvoiceValidationAgent()
         self.matching_agent = PurchaseOrderMatchingAgent()
+        self.review_agent = HumanReviewAgent()
 
     async def _retry_with_backoff(self, func, max_retries=3, base_delay=1):
         """Retry an async function with exponential backoff."""
@@ -32,7 +33,7 @@ class InvoiceProcessingWorkflow:
                 await asyncio.sleep(delay)
 
     async def process_invoice(self, document_path: str) -> dict:
-        """Orchestrate extraction, validation, and PO matching asynchronously."""
+        """Orchestrate extraction, validation, matching, and human review asynchronously."""
         logger.info(f"Starting invoice processing for: {document_path}")
         
         # Step 1: Extract data
@@ -47,13 +48,6 @@ class InvoiceProcessingWorkflow:
         try:
             validation_result = await self._retry_with_backoff(lambda: self.validation_agent.run(extracted_data))
             logger.info(f"Validation completed: {validation_result}")
-            if validation_result.status != "valid":
-                logger.warning(f"Skipping PO matching due to validation failure: {validation_result}")
-                return {
-                    "extracted_data": extracted_data.model_dump(),
-                    "validation_result": validation_result.model_dump(),
-                    "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0}
-                }
         except Exception as e:
             logger.error(f"Validation failed after retries: {str(e)}")
             return {"status": "error", "message": str(e)}
@@ -66,11 +60,20 @@ class InvoiceProcessingWorkflow:
             logger.error(f"Matching failed after retries: {str(e)}")
             return {"status": "error", "message": str(e)}
 
+        # Step 4: Human review if needed
+        try:
+            review_result = await self._retry_with_backoff(lambda: self.review_agent.run(extracted_data, validation_result))
+            logger.info(f"Review completed: {review_result}")
+        except Exception as e:
+            logger.error(f"Review failed after retries: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
         # Compile result
         result = {
             "extracted_data": extracted_data.model_dump(),
             "validation_result": validation_result.model_dump(),
-            "matching_result": matching_result
+            "matching_result": matching_result,
+            "review_result": review_result
         }
         logger.info(f"Invoice processing completed: {document_path}")
         return result
