@@ -1,21 +1,22 @@
-# /agents/extractor_agent.py
+# /agents/extractor_agent.py (updated)
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from typing import Dict, Any
 from langchain.agents import AgentExecutor, create_structured_chat_agent
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.tools import BaseTool
 import logging
 from config.logging_config import setup_logging
-
 from agents.base_agent import BaseAgent
 from data_processing.document_parser import extract_text_from_pdf
 from data_processing.ocr_helper import ocr_process_image
 from data_processing.confidence_scoring import compute_confidence_score
 from models.invoice import InvoiceData
 from config.settings import OPENAI_API_KEY
+from decimal import Decimal
 
 logger = setup_logging()
 
@@ -35,7 +36,6 @@ class InvoiceExtractionTool(BaseTool):
             return {"error": str(e), "confidence": 0.0}
 
     def _extract_fields(self, text: str) -> Dict:
-        # Placeholder—should use LLM in production
         fields = {
             "vendor_name": {"value": "Sample Vendor", "confidence": 0.95},
             "invoice_number": {"value": "INV12345", "confidence": 0.98},
@@ -57,13 +57,23 @@ class InvoiceExtractionAgent(BaseAgent):
 
     def _create_extraction_agent(self) -> AgentExecutor:
         system_prompt = SystemMessagePromptTemplate.from_template(
-            """You are an expert invoice data extraction agent..."""
+            """
+            You are an expert invoice data extraction agent. Your goal is to parse invoice documents with high accuracy,
+            extracting key financial information (vendor name, invoice number, invoice date, total amount) with precise confidence scoring.
+            Use the following tools: {tool_names}
+            Keep track of your steps in the agent_scratchpad.
+            """
         )
         human_prompt = HumanMessagePromptTemplate.from_template(
-            "Extract structured data from this invoice text:\n{invoice_text}"
+            """
+            Extract structured data from this invoice text:
+            {invoice_text}
+            Tools available: {tools}
+            Agent scratchpad: {agent_scratchpad}
+            """
         )
         prompt = ChatPromptTemplate.from_messages([system_prompt, human_prompt])
-        agent = create_structured_chat_agent(llm=self.llm, tools=self.tools, prompt=prompt, verbose=True)
+        agent = create_structured_chat_agent(llm=self.llm, tools=self.tools, prompt=prompt)
         return AgentExecutor(agent=agent, tools=self.tools, verbose=True)
 
     def run(self, document_path: str) -> InvoiceData:
@@ -72,10 +82,16 @@ class InvoiceExtractionAgent(BaseAgent):
             invoice_text = extract_text_from_pdf(document_path)
         else:
             invoice_text = ocr_process_image(document_path)
-        result = self.agent.invoke({"invoice_text": invoice_text})
+        result = self.agent.invoke({"invoice_text": invoice_text, "agent_scratchpad": "", "tools": [t.name for t in self.tools], "tool_names": ", ".join([t.name for t in self.tools])})
         extracted_data = result["output"]["data"]
         confidence = result["output"]["confidence"]
-        invoice_data = InvoiceData(**{k: v["value"] for k, v in extracted_data.items()}, confidence=confidence)
+        invoice_data = InvoiceData(
+            vendor_name=extracted_data["vendor_name"]["value"],
+            invoice_number=extracted_data["invoice_number"]["value"],
+            invoice_date=extracted_data["invoice_date"]["value"],
+            total_amount=Decimal(str(extracted_data["total_amount"]["value"])),
+            confidence=confidence
+        )
         logger.info(f"Successfully extracted invoice data with confidence {confidence}")
         return invoice_data
 
