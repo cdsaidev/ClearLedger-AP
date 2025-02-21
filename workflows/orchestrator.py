@@ -1,10 +1,11 @@
-# /workflows/orchestrator.py
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 import asyncio
+import json
 from config.logging_config import logger  # Import singleton logger
+from config.monitoring import Monitoring  # Import Monitoring class
 from agents.extractor_agent import InvoiceExtractionAgent
 from agents.validator_agent import InvoiceValidationAgent
 from agents.matching_agent import PurchaseOrderMatchingAgent
@@ -37,15 +38,35 @@ class InvoiceProcessingWorkflow:
         logger.info(f"Starting invoice processing for: {document_path}")
         logger.debug(f"Processing pipeline initiated for document: {document_path}")
 
+        # Initialize monitoring
+        monitoring = Monitoring()
+
         try:
+            # Extraction with timing
+            monitoring.start_timer("extraction")
             extracted_data = await self._retry_with_backoff(lambda: self.extraction_agent.run(document_path))
+            monitoring.stop_timer("extraction")
             logger.info(f"Extraction completed: {extracted_data}")
+
+            # Save extracted data to structured_invoices.json
+            try:
+                os.makedirs("data/processed", exist_ok=True)  # Ensure directory exists
+                with open("data/processed/structured_invoices.json", "a") as f:
+                    json.dump(extracted_data.model_dump(), f, indent=4)
+                    f.write("\n")  # Add newline for readability/separation
+                logger.info(f"Saved extracted data to structured_invoices.json for {document_path}")
+            except Exception as e:
+                logger.error(f"Failed to save extracted data: {str(e)}")
+
         except Exception as e:
             logger.error(f"Extraction failed after retries: {str(e)}")
             return {"status": "error", "message": str(e)}
 
         try:
+            # Validation with timing
+            monitoring.start_timer("validation")
             validation_result = await self._retry_with_backoff(lambda: self.validation_agent.run(extracted_data))
+            monitoring.stop_timer("validation")
             logger.info(f"Validation completed: {validation_result}")
             if validation_result.status != "valid":
                 logger.warning(f"Skipping PO matching due to validation failure: {validation_result}")
@@ -60,14 +81,20 @@ class InvoiceProcessingWorkflow:
             return {"status": "error", "message": str(e)}
 
         try:
+            # Matching with timing
+            monitoring.start_timer("matching")
             matching_result = await self._retry_with_backoff(lambda: self.matching_agent.run(extracted_data))
+            monitoring.stop_timer("matching")
             logger.info(f"Matching completed: {matching_result}")
         except Exception as e:
             logger.error(f"Matching failed after retries: {str(e)}")
             return {"status": "error", "message": str(e)}
 
         try:
+            # Review with timing
+            monitoring.start_timer("review")
             review_result = await self._retry_with_backoff(lambda: self.review_agent.run(extracted_data, validation_result))
+            monitoring.stop_timer("review")
             logger.info(f"Review completed: {review_result}")
         except Exception as e:
             logger.error(f"Review failed after retries: {str(e)}")
