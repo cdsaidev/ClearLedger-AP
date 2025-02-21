@@ -48,13 +48,31 @@ class InvoiceProcessingWorkflow:
             monitoring.stop_timer("extraction")
             logger.info(f"Extraction completed: {extracted_data}")
 
-            # Save extracted data to structured_invoices.json
+            # Convert extracted_data to a JSON-serializable format
+            extracted_dict = {
+                "vendor_name": extracted_data.vendor_name,
+                "invoice_number": extracted_data.invoice_number,
+                "invoice_date": extracted_data.invoice_date.strftime("%Y-%m-%d"),  # Convert date to string
+                "total_amount": str(extracted_data.total_amount),  # Convert Decimal to string
+                "confidence": extracted_data.confidence,
+                "po_number": extracted_data.po_number,
+                "tax_amount": extracted_data.tax_amount,
+                "currency": extracted_data.currency
+            }
+
+            # Save to structured_invoices.json
+            output_file = "data/processed/structured_invoices.json"
             try:
-                os.makedirs("data/processed", exist_ok=True)  # Ensure directory exists
-                with open("data/processed/structured_invoices.json", "a") as f:
-                    json.dump(extracted_data.model_dump(), f, indent=4)
-                    f.write("\n")  # Add newline for readability/separation
-                logger.info(f"Saved extracted data to structured_invoices.json for {document_path}")
+                os.makedirs("data/processed", exist_ok=True)
+                try:
+                    with open(output_file, "r") as f:
+                        all_invoices = json.load(f)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    all_invoices = []
+                all_invoices.append(extracted_dict)
+                with open(output_file, "w") as f:
+                    json.dump(all_invoices, f, indent=4)
+                logger.info(f"Saved extracted data to {output_file} for {document_path}")
             except Exception as e:
                 logger.error(f"Failed to save extracted data: {str(e)}")
 
@@ -71,10 +89,10 @@ class InvoiceProcessingWorkflow:
             if validation_result.status != "valid":
                 logger.warning(f"Skipping PO matching due to validation failure: {validation_result}")
                 return {
-                    "extracted_data": extracted_data.model_dump(),
+                    "extracted_data": extracted_dict,
                     "validation_result": validation_result.model_dump(),
                     "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0},
-                    "review_result": {"status": "skipped", "invoice_data": extracted_data.model_dump()}
+                    "review_result": {"status": "skipped", "invoice_data": extracted_dict}
                 }
         except Exception as e:
             logger.error(f"Validation failed after retries: {str(e)}")
@@ -101,7 +119,7 @@ class InvoiceProcessingWorkflow:
             return {"status": "error", "message": str(e)}
 
         result = {
-            "extracted_data": extracted_data.model_dump(),
+            "extracted_data": extracted_dict,
             "validation_result": validation_result.model_dump(),
             "matching_result": matching_result,
             "review_result": review_result
