@@ -225,6 +225,18 @@ Additional Enhancements:
 
 ---
 
+## Model Transition and Backend Updates
+
+- **Initial Challenge**: We started with a local Mistral 7B model for invoice extraction but encountered inconsistent JSON output, leading to persistent parsing errors that stalled progress.
+- **Switch to OpenAI API**: On Day 3, we replaced the 7B model with OpenAI’s gpt-4o-mini API using an API key (purchased $5 credits), improving reliability and eliminating local hosting needs.
+- **Extractor Agent Fixes**: Updated `agents/extractor_agent.py` to use OpenAI API calls, set a default confidence score of 0.95 for successful extractions, and removed unnecessary LangChain dependencies originally used with Mistral.
+- **Confidence Scoring Adjustments**: Modified `data_processing/confidence_scoring.py` to handle OpenAI’s flat JSON output, ensuring accurate confidence scores instead of defaulting to 0.0.
+- **Orchestrator Enhancements**: Fixed `workflows/orchestrator.py` to serialize InvoiceData correctly (converting datetime.date and Decimal to strings), resolved indentation errors that prevented `process_invoice` execution, and ensured all invoices are processed and saved to `data/processed/structured_invoices.json`.
+- **Serialization Success**: Overcame "Object of type date is not JSON serializable" errors by using an extracted_dict with string conversions, validated by successful JSON output.
+- **Impact**: These changes resulted in a robust backend pipeline—extraction, validation, PO matching, and review now run end-to-end, processing multiple invoices with high accuracy and saving structured data reliably.
+
+---
+
 ## 🔍 Overall Project Structure
 - **agents/**: Contains various agents for extraction (`extractor_agent.py`), validation (`validator_agent.py`), matching (`matching_agent.py`), and fallback (`fallback_agent.py`)
 - **api/**: RESTful API endpoints (e.g., `review_api.py` for human-in-the-loop review)
