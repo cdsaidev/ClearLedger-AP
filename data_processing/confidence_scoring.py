@@ -9,6 +9,10 @@ def compute_confidence_score(extracted_data: Dict[str, Any]) -> float:
         if not extracted_data:
             logger.warning("Empty extracted data received")
             return 0.0
+        # Check if data is from OpenAI (flat structure) or fallback tool (nested)
+        if "vendor_name" in extracted_data and not isinstance(extracted_data["vendor_name"], dict):
+            logger.info("Assuming high confidence for OpenAI extracted data")
+            return 0.95  # Default for OpenAI
         confidences = [field["confidence"] for field in extracted_data.values() if isinstance(field, dict) and "confidence" in field]
         if not confidences:
             logger.warning("No confidence scores found in extracted data")
