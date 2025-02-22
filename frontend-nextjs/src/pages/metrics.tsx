@@ -8,12 +8,15 @@ interface Invoice {
   total_amount: number;
   confidence: number;
   validation_status: string;
+  processing_time?: number;
 }
 
 export default function MetricsPage() {
   const [metrics, setMetrics] = useState<{
     total: number;
     valid: number;
+    avg_time: number;
+    high_confidence_pct: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +28,20 @@ export default function MetricsPage() {
       const invoices: Invoice[] = await getInvoices();
       const total = invoices.length;
       const valid = invoices.filter((i) => i.validation_status === 'valid').length;
-      setMetrics({ total, valid });
+      
+      // Calculate average processing time
+      const avgTime = invoices.reduce((sum, inv) => sum + (inv.processing_time || 0), 0) / total;
+      
+      // Calculate high confidence percentage (confidence > 0.8 is considered high)
+      const highConfidenceCount = invoices.filter((i) => i.confidence > 0.8).length;
+      const highConfidencePct = (highConfidenceCount / total) * 100;
+
+      setMetrics({ 
+        total, 
+        valid, 
+        avg_time: Number(avgTime.toFixed(2)),
+        high_confidence_pct: Number(highConfidencePct.toFixed(1))
+      });
     } catch (err) {
       setError('Failed to load metrics. Please try again.');
     } finally {
@@ -51,7 +67,7 @@ export default function MetricsPage() {
       </div>
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {metrics ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900">Total Invoices</h3>
             <p className="mt-2 text-3xl font-semibold text-blue-600">{metrics.total}</p>
@@ -59,6 +75,14 @@ export default function MetricsPage() {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900">Valid Invoices</h3>
             <p className="mt-2 text-3xl font-semibold text-green-600">{metrics.valid}</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900">Average Processing Time</h3>
+            <p className="mt-2 text-3xl font-semibold text-purple-600">{metrics.avg_time}s</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900">High Confidence Invoices</h3>
+            <p className="mt-2 text-3xl font-semibold text-orange-600">{metrics.high_confidence_pct}%</p>
           </div>
         </div>
       ) : (
