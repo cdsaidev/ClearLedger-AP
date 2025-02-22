@@ -39,7 +39,7 @@ OUTPUT_FILE = Path("data/processed/structured_invoices.json")
 
 @app.get("/api/process_all_invoices")
 async def process_all_invoices():
-    invoice_files = glob("data/raw/*.pdf")
+    invoice_files = glob("data/raw/invoices/*.pdf")
     if not invoice_files:
         return {"message": "No invoices found in data/raw/"}
     results = []
