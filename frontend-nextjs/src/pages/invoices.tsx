@@ -33,37 +33,45 @@ export default function InvoicesPage() {
   }, []);
 
   return (
-    <div>
-      <h1>Invoices</h1>
-      <button onClick={fetchInvoices} disabled={loading}>
-        {loading ? 'Refreshing...' : 'Refresh'}
-      </button>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    <div className="max-w-7xl mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Invoices</h1>
+        <button 
+          onClick={fetchInvoices} 
+          disabled={loading}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+      {error && <p className="text-red-500 mb-4">{error}</p>}
       {invoices.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>Vendor</th>
-              <th>Invoice Number</th>
-              <th>Total Amount</th>
-              <th>Confidence</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.map((invoice) => (
-              <tr key={invoice.invoice_number}>
-                <td>{invoice.vendor_name}</td>
-                <td>{invoice.invoice_number}</td>
-                <td>{invoice.total_amount}</td>
-                <td>{(invoice.confidence * 100).toFixed(2)}%</td>
-                <td>{invoice.validation_status}</td>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice Number</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {invoices.map((invoice) => (
+                <tr key={invoice.invoice_number} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">{invoice.vendor_name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{invoice.invoice_number}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{invoice.total_amount}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{(invoice.confidence * 100).toFixed(2)}%</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{invoice.validation_status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <p>No invoices found.</p>
+        <p className="text-gray-500 text-center py-8">No invoices found.</p>
       )}
     </div>
   );

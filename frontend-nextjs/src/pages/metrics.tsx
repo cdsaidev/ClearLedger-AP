@@ -38,19 +38,31 @@ export default function MetricsPage() {
   }, []);
 
   return (
-    <div>
-      <h1>Metrics</h1>
-      <button onClick={fetchMetrics} disabled={loading}>
-        {loading ? 'Refreshing...' : 'Refresh'}
-      </button>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    <div className="max-w-7xl mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Metrics</h1>
+        <button 
+          onClick={fetchMetrics} 
+          disabled={loading}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+      {error && <p className="text-red-500 mb-4">{error}</p>}
       {metrics ? (
-        <div>
-          <p>Total Invoices: {metrics.total}</p>
-          <p>Valid Invoices: {metrics.valid}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900">Total Invoices</h3>
+            <p className="mt-2 text-3xl font-semibold text-blue-600">{metrics.total}</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900">Valid Invoices</h3>
+            <p className="mt-2 text-3xl font-semibold text-green-600">{metrics.valid}</p>
+          </div>
         </div>
       ) : (
-        <p>No metrics available.</p>
+        <p className="text-gray-500 text-center py-8">No metrics available.</p>
       )}
     </div>
   );

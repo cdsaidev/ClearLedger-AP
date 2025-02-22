@@ -35,27 +35,34 @@ export default function UploadPage() {
   };
 
   return (
-    <div>
-      <h1>Upload Invoice</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="file"
-          accept=".pdf"
-          multiple={false}
-          onChange={(e) => setFiles(e.target.files)}
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Uploading...' : 'Upload'}
-        </button>
+    <div className="max-w-2xl mx-auto py-6">
+      <h1 className="text-2xl font-bold mb-6">Upload Invoice</h1>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-center space-x-4">
+          <input
+            type="file"
+            accept=".pdf"
+            multiple={false}
+            onChange={(e) => setFiles(e.target.files)}
+            className="flex-1 p-2 border rounded"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+          >
+            {loading ? 'Uploading...' : 'Upload'}
+          </button>
+        </div>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="text-red-500 mt-4">{error}</p>}
       {response && (
-        <div>
-          <p>Vendor: {response.extracted_data.vendor_name}</p>
-          <p>Invoice Number: {response.extracted_data.invoice_number}</p>
-          <p>Total Amount: {response.extracted_data.total_amount}</p>
-          <p>Confidence: {(response.extracted_data.confidence * 100).toFixed(2)}%</p>
-          <p>Status: {response.extracted_data.validation_status}</p>
+        <div className="bg-gray-100 p-4 rounded mt-4 space-y-2">
+          <p><span className="font-semibold">Vendor:</span> {response.extracted_data.vendor_name}</p>
+          <p><span className="font-semibold">Invoice Number:</span> {response.extracted_data.invoice_number}</p>
+          <p><span className="font-semibold">Total Amount:</span> {response.extracted_data.total_amount}</p>
+          <p><span className="font-semibold">Confidence:</span> {(response.extracted_data.confidence * 100).toFixed(2)}%</p>
+          <p><span className="font-semibold">Status:</span> {response.extracted_data.validation_status}</p>
         </div>
       )}
     </div>
