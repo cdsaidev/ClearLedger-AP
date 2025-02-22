@@ -298,14 +298,17 @@ Additional Enhancements:
 - **Async Processing & Error Handling:** Retries, structured logging, and enhanced error capture
 - **Monitoring:** Execution time tracking integrated into the pipeline
 
+## Day 4: Frontend Development
+
+- Successfully implemented the Streamlit frontend for uploading invoices, viewing processed data, and reviewing flagged cases (due to time constrains, I picked this option
+instead of react/next.js)
+- Integrated the frontend with the FastAPI backend, allowing seamless communication between the UI and the invoice processing system.
+- Resolved issues with module imports and file paths, ensuring the system runs smoothly.
+- Tested the end-to-end functionality, including uploading a PDF invoice, processing it, and reviewing the results.
+
 ---
 
-## 🚀 Remaining Workflow (Days 4–10)
-
-### Day 4 – Frontend Development & Integration
-- Build a basic frontend (Streamlit/Next.js) for invoice upload, review panel, and results display
-- Integrate frontend with backend APIs
-- Benchmark processing times and confidence scores
+## 🚀 Remaining Workflow (Days 5–10)
 
 ### Day 5 – Deployment & Post-Processing Analytics
 - Dockerize the application
@@ -356,3 +359,4 @@ ollama run mistral:7b "test"
 ### Execution
 ```bash
 python workflows/orchestrator.py
+```
