@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getInvoices, submitReview } from '../lib/api';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// Set up worker for PDF.js
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 // Interface for type safety
 interface Invoice {
@@ -17,6 +23,8 @@ export default function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [editInvoice, setEditInvoice] = useState<Invoice | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -66,6 +74,16 @@ export default function ReviewPage() {
   useEffect(() => {
     fetchInvoices();
   }, []);
+
+  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
+    setNumPages(numPages);
+    setPdfError(null);
+  }
+
+  function onDocumentLoadError(error: Error) {
+    console.error('Error loading PDF:', error);
+    setPdfError('Failed to load PDF');
+  }
 
   return (
     <div className="max-w-7xl mx-auto py-6">
@@ -144,8 +162,8 @@ export default function ReviewPage() {
             <>
               {invoices.length > 0 ? (
                 <ul className="divide-y divide-gray-200">
-                  {invoices.map((invoice) => (
-                    <li key={invoice.invoice_number} className="py-4">
+                  {invoices.map((invoice, index) => (
+                    <li key={`${invoice.invoice_number}-${index}`} className="py-4">
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="font-medium">Invoice: {invoice.invoice_number}</p>
@@ -153,7 +171,7 @@ export default function ReviewPage() {
                           <p className="text-sm text-gray-600">Status: {invoice.validation_status}</p>
                           <div className="flex space-x-3 mt-2">
                             <a 
-                              href={`/invoices/${invoice.invoice_number}.pdf`} 
+                              href={`http://localhost:8000/invoices/pdf/${invoice.invoice_number}`}
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-sm text-blue-600 hover:underline"
@@ -187,12 +205,29 @@ export default function ReviewPage() {
         
         <div className="h-screen sticky top-0">
           {selectedInvoice && (
-            <div className="border rounded-lg overflow-hidden h-full">
-              <iframe
-                src={`/invoices/${selectedInvoice.invoice_number}.pdf`}
-                className="w-full h-full"
-                title={`Invoice ${selectedInvoice.invoice_number} Preview`}
-              />
+            <div className="border rounded-lg overflow-hidden h-full bg-white">
+              {pdfError ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-red-500">{pdfError}</p>
+                </div>
+              ) : (
+                <Document
+                  file={`http://localhost:8000/invoices/pdf/${selectedInvoice.invoice_number}`}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  className="w-full h-full overflow-auto"
+                >
+                  {Array.from(new Array(numPages || 0), (_, index) => (
+                    <Page
+                      key={`page_${index + 1}`}
+                      pageNumber={index + 1}
+                      className="mb-4"
+                      renderTextLayer={true}
+                      renderAnnotationLayer={true}
+                    />
+                  ))}
+                </Document>
+              )}
             </div>
           )}
         </div>
