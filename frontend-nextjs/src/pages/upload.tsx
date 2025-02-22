@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { uploadInvoice } from '../lib/api';
+import { uploadInvoice } from "../../lib/api";  // Should now resolve correctly
 
 // Interface for type safety
 interface UploadResponse {
@@ -38,7 +38,7 @@ export default function UploadPage() {
     setError(null);
     console.log("Uploading file:", files[0].name);
     try {
-      const data = await uploadInvoice(files);
+      const data = await uploadInvoice(files[0]);
       console.log("API response:", JSON.stringify(data, null, 2));
       setResponse(data);
       console.log("Updated response state:", JSON.stringify(data, null, 2));
