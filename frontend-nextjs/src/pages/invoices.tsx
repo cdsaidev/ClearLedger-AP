@@ -60,14 +60,14 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {invoices.map((invoice) => (
-                <tr key={invoice.invoice_number} className="hover:bg-gray-50">
+              {invoices.map((invoice, index) => (
+                <tr key={`${invoice.invoice_number}-${index}`} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.vendor_name}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.invoice_number}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.invoice_date}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.total_amount}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{(invoice.confidence * 100).toFixed(2)}%</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.validation_status}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{invoice.validation_status?.trim() || "Unknown"}</td>
                 </tr>
               ))}
             </tbody>
