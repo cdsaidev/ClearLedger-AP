@@ -57,19 +57,17 @@ elif page == "Review":
     if response.status_code == 200:
         invoices = response.json()
         flagged = [inv for inv in invoices if float(inv.get("confidence", 1.0)) < 0.9 or inv.get("validation_status") != "valid"]
-        if flagged:
-            for inv in flagged:
-                with st.expander(f"Invoice {inv['invoice_number']} (Confidence: {inv['confidence']:.2f})"):
-                    st.write(f"Total Time: {inv.get('total_time', 0):.2f}s")
-                    vendor = st.text_input("Vendor Name", inv["vendor_name"], key=f"vendor_{inv['invoice_number']}")
-                    total = st.number_input("Total Amount", float(inv["total_amount"]), key=f"total_{inv['invoice_number']}")
-                    if st.button("Save Corrections", key=f"save_{inv['invoice_number']}"):
-                        # Placeholder for correction submission (requires a backend endpoint)
-                        st.success("Corrections saved (simulation)!")
-        else:
-            st.info("No invoices require review.")
+        for i, inv in enumerate(flagged):
+            with st.expander(f"Invoice {inv['invoice_number']} (Confidence: {inv['confidence']:.2f})"):
+                vendor_key = f"vendor_{inv['invoice_number']}_{i}"
+                total_key = f"total_{inv['invoice_number']}_{i}"
+                vendor = st.text_input("Vendor Name", inv["vendor_name"], key=vendor_key)
+                total = st.number_input("Total Amount", float(inv["total_amount"]), key=total_key)
+                if st.button("Save Corrections", key=f"save_{inv['invoice_number']}_{i}"):
+                    # Add your save logic here, e.g., send updated data to the API
+                    st.success(f"Corrections saved for {inv['invoice_number']}")
     else:
-        st.error(f"Error: {response.text}")
+        st.error("Failed to fetch invoices from API")
 
 elif page == "Metrics":
     st.header("📊 Performance Metrics")
@@ -78,17 +76,23 @@ elif page == "Metrics":
         invoices = response.json()
         if invoices:
             df = pd.DataFrame(invoices)
+            # Use .get() to provide defaults for missing fields
+            avg_confidence = df.get("confidence", pd.Series([0])).mean()
+            total_invoices = len(df)
+            avg_time = df.get("total_time", pd.Series([0])).mean()
+            
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Avg. Confidence Score", f"{df['confidence'].mean():.1%}")
+                st.metric("Avg. Confidence Score", f"{avg_confidence:.1%}")
             with col2:
-                st.metric("Total Invoices", len(df))
+                st.metric("Total Invoices", total_invoices)
             with col3:
-                st.metric("Avg. Processing Time", f"{df['total_time'].mean():.2f}s")
+                st.metric("Avg. Processing Time", f"{avg_time:.2f}s")
             
             # Confidence Distribution
-            st.subheader("Confidence Score Distribution")
-            st.bar_chart(df["confidence"].value_counts())
+            if "confidence" in df.columns:
+                st.subheader("Confidence Score Distribution")
+                st.bar_chart(df["confidence"].value_counts())
             
             # Processing Times
             st.subheader("Processing Times")
@@ -108,6 +112,6 @@ elif page == "Metrics":
                 "Total (s)": "{:.2f}"
             }))
         else:
-            st.info("No invoices processed yet.")
+            st.info("No invoices available yet.")
     else:
-        st.error(f"Error: {response.text}")
+        st.error("Failed to fetch metrics from API")
