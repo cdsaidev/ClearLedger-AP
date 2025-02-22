@@ -4,8 +4,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 
-// Set up worker for PDF.js
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Set up worker for PDF.js with specific version
+pdfjs.GlobalWorkerOptions.workerSrc = "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
 
 // Interface for type safety
 interface Invoice {
@@ -77,20 +77,36 @@ export default function ReviewPage() {
   }, []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
+    console.log("PDF loaded successfully with", numPages, "pages");
     setNumPages(numPages);
     setPdfError(null);
   }
 
   function onDocumentLoadError(error: Error) {
-    console.error('Error loading PDF:', error);
+    console.error("PDF load failed:", error);
     setPdfError('Failed to load PDF');
   }
 
-  const previewInvoice = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setShowPreview(true);
-    setPdfError(null);
-    setNumPages(null);
+  const previewInvoice = async (invoice: Invoice) => {
+    try {
+      const pdfUrl = `http://localhost:8000/api/invoice_pdf/${invoice.invoice_number}`;
+      console.log("Loading PDF from:", pdfUrl);
+      
+      // Check if the endpoint returns a valid PDF
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+      }
+      
+      setSelectedInvoice(invoice);
+      setShowPreview(true);
+      setPdfError(null);
+      setNumPages(null);
+    } catch (error) {
+      console.error("Preview error:", error);
+      setPdfError(error instanceof Error ? error.message : 'Failed to load PDF');
+      setShowPreview(false);
+    }
   };
 
   return (
@@ -178,14 +194,24 @@ export default function ReviewPage() {
                           <p className="text-sm text-gray-600">Amount: {invoice.total_amount}</p>
                           <p className="text-sm text-gray-600">Status: {invoice.validation_status}</p>
                           <div className="flex space-x-3 mt-2">
-                            <a 
-                              href={`http://localhost:8000/invoices/pdf/${invoice.invoice_number}`}
-                              target="_blank" 
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const pdfUrl = `http://localhost:8000/api/invoice_pdf/${invoice.invoice_number}`;
+                                  const response = await fetch(pdfUrl);
+                                  if (!response.ok) {
+                                    throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+                                  }
+                                  window.open(pdfUrl, "_blank");
+                                } catch (error) {
+                                  console.error("Error opening PDF:", error);
+                                  alert("Failed to open PDF. Please try again.");
+                                }
+                              }}
                               className="text-sm text-blue-600 hover:underline"
                             >
                               View PDF
-                            </a>
+                            </button>
                             <button
                               onClick={() => previewInvoice(invoice)}
                               className="text-sm text-blue-600 hover:underline"
@@ -227,13 +253,23 @@ export default function ReviewPage() {
               </div>
               {pdfError ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-red-500">{pdfError}</p>
+                  <p className="text-red-500">
+                    {pdfError}
+                    <button 
+                      onClick={() => setShowPreview(false)} 
+                      className="ml-4 text-gray-500 hover:text-gray-700"
+                    >
+                      Close
+                    </button>
+                  </p>
                 </div>
               ) : (
                 <Document
-                  file={`http://localhost:8000/invoices/pdf/${selectedInvoice.invoice_number}`}
+                  file={selectedInvoice ? `http://localhost:8000/api/invoice_pdf/${selectedInvoice.invoice_number}` : null}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={onDocumentLoadError}
+                  loading={<div className="text-center py-4">Loading PDF...</div>}
+                  error={<div className="text-center py-4 text-red-500">Error loading PDF. Please try again.</div>}
                   className="w-full h-full overflow-auto"
                 >
                   {Array.from(new Array(numPages || 0), (_, index) => (
