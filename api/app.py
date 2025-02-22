@@ -19,6 +19,7 @@ import uuid
 print("uuid imported")
 from glob import glob
 from pydantic import BaseModel
+from shutil import copyfile
 
 # Ensure temp directory exists at startup
 Path("data/temp").mkdir(parents=True, exist_ok=True)
@@ -38,18 +39,37 @@ app.add_middleware(
 )
 
 OUTPUT_FILE = Path("data/processed/structured_invoices.json")
+PDF_OUTPUT_DIR = Path("data/processed")
+
+def save_pdf_file(temp_path: Path, invoice_number: str) -> bool:
+    """Save PDF file to processed directory."""
+    try:
+        PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = PDF_OUTPUT_DIR / f"{invoice_number}.pdf"
+        if isinstance(temp_path, str):
+            temp_path = Path(temp_path)
+        print(f"Copying PDF from {temp_path} to {output_path}")
+        copyfile(temp_path, output_path)
+        print(f"PDF saved successfully: {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error saving PDF: {e}")
+        return False
 
 @app.get("/api/process_all_invoices")
 async def process_all_invoices():
     invoice_files = glob("data/raw/invoices/*.pdf")
     if not invoice_files:
-        return {"message": "No invoices found in data/raw/"}
+        return {"message": "No invoices found in data/raw/invoices/"}
     results = []
     for file in invoice_files:
         result = await workflow.process_invoice(file)
-        # The validation_status and total_time are already in the extracted_data
         save_invoice(result['extracted_data'])
-        results.append(result)
+        # Copy PDF to processed directory
+        if save_pdf_file(file, result['extracted_data']['invoice_number']):
+            results.append(result)
+        else:
+            print(f"Warning: Failed to save PDF for {result['extracted_data']['invoice_number']}")
     return {"message": f"Processed {len(results)} invoices"}
 
 def save_invoice(invoice_data: dict):
@@ -84,17 +104,24 @@ def save_invoice(invoice_data: dict):
 @app.post("/api/upload_invoice")
 async def upload_invoice(file: UploadFile = File(...)):
     """Process an uploaded invoice PDF."""
+    temp_path = Path(f"data/temp/{uuid.uuid4()}.pdf")
     try:
-        temp_path = Path(f"data/temp/{uuid.uuid4()}.pdf")
         temp_path.parent.mkdir(exist_ok=True)
         with open(temp_path, "wb") as f:
             f.write(await file.read())
+        
         result = await workflow.process_invoice(str(temp_path))
-        # The validation_status and total_time are already in the extracted_data
         save_invoice(result['extracted_data'])
-        temp_path.unlink()
+        
+        # Save PDF to processed directory
+        if not save_pdf_file(temp_path, result['extracted_data']['invoice_number']):
+            raise HTTPException(status_code=500, detail="Failed to save PDF file")
+        
+        temp_path.unlink()  # Clean up temp file
         return result
     except Exception as e:
+        if temp_path.exists():
+            temp_path.unlink()
         raise HTTPException(status_code=500, detail=f"Error processing invoice: {str(e)}")
 
 @app.get("/api/invoices")
@@ -113,22 +140,10 @@ async def get_invoices():
         print(f"Error reading invoices: {e}")
         return []
 
-@app.get("/api/invoices/pdf/{invoice_number}")
-async def get_invoice_pdf(invoice_number: str):
-    """Serve invoice PDF file."""
-    pdf_path = Path(f"data/raw/invoices/{invoice_number}.pdf")
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Invoice PDF not found")
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=f"{invoice_number}.pdf"
-    )
-
 @app.get("/api/invoice_pdf/{invoice_number}")
 async def get_invoice_pdf(invoice_number: str):
-    """Serve invoice PDF file."""
-    pdf_path = Path(f"data/raw/invoices/{invoice_number}.pdf")
+    """Serve invoice PDF file from processed directory."""
+    pdf_path = PDF_OUTPUT_DIR / f"{invoice_number}.pdf"
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="Invoice PDF not found")
     return FileResponse(
