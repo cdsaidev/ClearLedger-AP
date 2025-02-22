@@ -8,7 +8,7 @@ interface Invoice {
   total_amount: number;
   confidence: number;
   validation_status: string;
-  processing_time?: number;
+  total_time?: number;  // Added total_time field
 }
 
 export default function MetricsPage() {
@@ -29,8 +29,8 @@ export default function MetricsPage() {
       const total = invoices.length;
       const valid = invoices.filter((i) => i.validation_status === 'valid').length;
       
-      // Calculate average processing time
-      const avgTime = invoices.reduce((sum, inv) => sum + (inv.processing_time || 0), 0) / total;
+      // Calculate average processing time using total_time
+      const avgTime = invoices.reduce((sum, inv) => sum + (inv.total_time || 0), 0) / total;
       
       // Calculate high confidence percentage (confidence > 0.8 is considered high)
       const highConfidenceCount = invoices.filter((i) => i.confidence > 0.8).length;
