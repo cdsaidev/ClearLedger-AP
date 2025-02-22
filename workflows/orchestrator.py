@@ -39,12 +39,17 @@ class InvoiceProcessingWorkflow:
         logger.debug(f"Processing pipeline initiated for document: {document_path}")
 
         monitoring = Monitoring()
+        extraction_time = None
+        validation_time = None
+        matching_time = None
+        review_time = None
+
         try:
             monitoring.start_timer("extraction")
             extracted_data = await self._retry_with_backoff(lambda: self.extraction_agent.run(document_path))
             monitoring.stop_timer("extraction")
+            extraction_time = monitoring.get_duration("extraction")
             logger.info(f"Extraction completed: {extracted_data}")
-            # Convert extracted_data to a JSON-serializable format
             extracted_dict = {
                 "vendor_name": extracted_data.vendor_name,
                 "invoice_number": extracted_data.invoice_number,
@@ -55,72 +60,160 @@ class InvoiceProcessingWorkflow:
                 "tax_amount": extracted_data.tax_amount,
                 "currency": extracted_data.currency
             }
-            # Save to structured_invoices.json
-            output_file = "data/processed/structured_invoices.json"
-            try:
-                os.makedirs("data/processed", exist_ok=True)
-                try:
-                    with open(output_file, "r") as f:
-                        all_invoices = json.load(f)
-                except (FileNotFoundError, json.JSONDecodeError):
-                    all_invoices = []
-                all_invoices.append(extracted_dict)
-                with open(output_file, "w") as f:
-                    json.dump(all_invoices, f, indent=4)
-                logger.info(f"Saved extracted data to {output_file} for {document_path}")
-            except Exception as e:
-                logger.error(f"Failed to save extracted data: {str(e)}")
         except Exception as e:
             logger.error(f"Extraction failed after retries: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            invoice_entry = {
+                "status": "error",
+                "message": str(e),
+                "extraction_time": monitoring.get_duration("extraction") if extraction_time is None else extraction_time,
+                "validation_time": 0,
+                "matching_time": 0,
+                "review_time": 0,
+                "total_time": monitoring.get_duration("extraction") if extraction_time is None else extraction_time
+            }
+            self._save_invoice_entry(invoice_entry)
+            return invoice_entry
 
         # Validation
         try:
             monitoring.start_timer("validation")
             validation_result = await self._retry_with_backoff(lambda: self.validation_agent.run(extracted_data))
             monitoring.stop_timer("validation")
+            validation_time = monitoring.get_duration("validation")
             logger.info(f"Validation completed: {validation_result}")
             if validation_result.status != "valid":
                 logger.warning(f"Skipping PO matching due to validation failure: {validation_result}")
+                invoice_entry = {
+                    **extracted_dict,
+                    "validation_status": validation_result.status,
+                    "validation_errors": validation_result.errors,
+                    "matching_status": "skipped",
+                    "review_status": "skipped",
+                    "extraction_time": extraction_time,
+                    "validation_time": validation_time,
+                    "matching_time": 0,
+                    "review_time": 0,
+                    "total_time": extraction_time + validation_time
+                }
+                self._save_invoice_entry(invoice_entry)
                 return {
                     "extracted_data": extracted_dict,
                     "validation_result": validation_result.model_dump(),
                     "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0},
-                    "review_result": {"status": "skipped", "invoice_data": extracted_dict}
+                    "review_result": {"status": "skipped", "invoice_data": extracted_dict},
+                    "extraction_time": extraction_time,
+                    "validation_time": validation_time,
+                    "matching_time": 0,
+                    "review_time": 0,
+                    "total_time": extraction_time + validation_time
                 }
         except Exception as e:
             logger.error(f"Validation failed after retries: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            invoice_entry = {
+                **extracted_dict,
+                "status": "error",
+                "message": str(e),
+                "extraction_time": extraction_time,
+                "validation_time": monitoring.get_duration("validation") if validation_time is None else validation_time,
+                "matching_time": 0,
+                "review_time": 0,
+                "total_time": extraction_time + (monitoring.get_duration("validation") if validation_time is None else validation_time)
+            }
+            self._save_invoice_entry(invoice_entry)
+            return invoice_entry
 
         # Matching
         try:
             monitoring.start_timer("matching")
             matching_result = await self._retry_with_backoff(lambda: self.matching_agent.run(extracted_data))
             monitoring.stop_timer("matching")
+            matching_time = monitoring.get_duration("matching")
             logger.info(f"Matching completed: {matching_result}")
         except Exception as e:
             logger.error(f"Matching failed after retries: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            invoice_entry = {
+                **extracted_dict,
+                "validation_status": validation_result.status,
+                "matching_status": "error",
+                "matching_error": str(e),
+                "review_status": "skipped",
+                "extraction_time": extraction_time,
+                "validation_time": validation_time,
+                "matching_time": monitoring.get_duration("matching") if matching_time is None else matching_time,
+                "review_time": 0,
+                "total_time": extraction_time + validation_time + (monitoring.get_duration("matching") if matching_time is None else matching_time)
+            }
+            self._save_invoice_entry(invoice_entry)
+            return invoice_entry
 
         # Review
         try:
             monitoring.start_timer("review")
             review_result = await self._retry_with_backoff(lambda: self.review_agent.run(extracted_data, validation_result))
             monitoring.stop_timer("review")
+            review_time = monitoring.get_duration("review")
             logger.info(f"Review completed: {review_result}")
         except Exception as e:
             logger.error(f"Review failed after retries: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            invoice_entry = {
+                **extracted_dict,
+                "validation_status": validation_result.status,
+                "matching_status": matching_result["status"],
+                "review_status": "error",
+                "review_error": str(e),
+                "extraction_time": extraction_time,
+                "validation_time": validation_time,
+                "matching_time": matching_time,
+                "review_time": monitoring.get_duration("review") if review_time is None else review_time,
+                "total_time": extraction_time + validation_time + matching_time + (monitoring.get_duration("review") if review_time is None else review_time)
+            }
+            self._save_invoice_entry(invoice_entry)
+            return invoice_entry
+
+        # All steps completed successfully
+        total_time = extraction_time + validation_time + matching_time + review_time
+        invoice_entry = {
+            **extracted_dict,
+            "validation_status": validation_result.status,
+            "matching_status": matching_result["status"],
+            "review_status": review_result["status"],
+            "extraction_time": extraction_time,
+            "validation_time": validation_time,
+            "matching_time": matching_time,
+            "review_time": review_time,
+            "total_time": total_time
+        }
+        self._save_invoice_entry(invoice_entry)
 
         result = {
             "extracted_data": extracted_dict,
             "validation_result": validation_result.model_dump(),
             "matching_result": matching_result,
-            "review_result": review_result
+            "review_result": review_result,
+            "extraction_time": extraction_time,
+            "validation_time": validation_time,
+            "matching_time": matching_time,
+            "review_time": review_time,
+            "total_time": total_time
         }
         logger.info(f"Invoice processing completed: {document_path}")
         logger.debug(f"Final result: {result}")
         return result
+
+    def _save_invoice_entry(self, invoice_entry, output_file="data/processed/structured_invoices.json"):
+        try:
+            os.makedirs("data/processed", exist_ok=True)
+            try:
+                with open(output_file, "r") as f:
+                    all_invoices = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                all_invoices = []
+            all_invoices.append(invoice_entry)
+            with open(output_file, "w") as f:
+                json.dump(all_invoices, f, indent=4)
+            logger.info(f"Saved invoice entry to {output_file}")
+        except Exception as e:
+            logger.error(f"Failed to save invoice entry: {str(e)}")
 
 async def main():
     workflow = InvoiceProcessingWorkflow()
