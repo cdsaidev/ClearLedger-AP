@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getInvoices } from '../../lib/api';
+import { toast } from 'react-hot-toast';
 
 // Interface for type safety
 interface Invoice {
@@ -44,6 +45,7 @@ export default function MetricsPage() {
       });
     } catch (err) {
       setError('Failed to load metrics. Please try again.');
+      toast.error('Failed to load metrics: ' + (err instanceof Error ? err.message : ''));
     } finally {
       setLoading(false);
     }
