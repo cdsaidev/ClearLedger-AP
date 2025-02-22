@@ -41,6 +41,16 @@ async def upload_invoice(file: UploadFile = File(...)):
 async def get_invoices():
     """Fetch all processed invoices."""
     try:
-        return json.load(OUTPUT_FILE.open("r")) if OUTPUT_FILE.exists() else []
+        if not OUTPUT_FILE.exists():
+            print(f"Warning: {OUTPUT_FILE} does not exist. Returning empty list.")
+            return []
+        
+        try:
+            with OUTPUT_FILE.open("r") as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error reading invoices - malformed JSON: {e}")
+            return []
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching invoices: {str(e)}")
+        print(f"Error reading invoices: {e}")
+        return []  # Return empty list instead of raising an exception
