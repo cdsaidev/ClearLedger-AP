@@ -28,95 +28,122 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [wsState, setWsState] = useState<{
+    connected: boolean;
+    reconnectAttempt: number;
+    lastError: string | null;
+  }>({
+    connected: false,
+    reconnectAttempt: 0,
+    lastError: null
+  });
 
   useEffect(() => {
-    let reconnectAttempt = 0;
-    const maxReconnectAttempts = 3;
+    if (!isProcessingAll) return;
+
+    let ws: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout;
+    const MAX_RECONNECT_ATTEMPTS = 3;
+    const INITIAL_RETRY_DELAY = 1000;
 
-    const connectWebSocket = () => {
-      const ws = new WebSocket('ws://localhost:8000/ws/process_progress');
-      
+    const connect = () => {
+      if (wsState.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+        toast.error('Failed to connect to server after multiple attempts');
+        return;
+      }
+
+      ws = new WebSocket('ws://localhost:8000/ws/process_progress');
+
       ws.onopen = () => {
-        setWsConnected(true);
-        reconnectAttempt = 0; // Reset attempt counter on successful connection
-      };
-      
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-          case 'progress':
-            setProcessingStatus({
-              current: data.current,
-              total: data.total,
-              failed: data.failed,
-              currentFile: data.currentFile
-            });
-            break;
-          case 'error':
-            toast.error(`Failed to process ${data.file}: ${data.error}`);
-            break;
-          case 'complete':
-            toast.success(data.message);
-            break;
-        }
+        setWsState(prev => ({
+          ...prev,
+          connected: true,
+          lastError: null,
+          reconnectAttempt: 0
+        }));
+        toast.success('Connected to processing server');
       };
 
-      ws.onclose = () => {
-        setWsConnected(false);
-        if (reconnectAttempt < maxReconnectAttempts) {
-          reconnectAttempt++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 10000);
-          reconnectTimeout = setTimeout(connectWebSocket, delay);
-        } else {
-          toast.error('Lost connection to server. Please refresh the page.');
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          switch (data.type) {
+            case 'progress':
+              setProcessingStatus(prev => ({
+                ...prev,
+                current: data.current,
+                total: data.total,
+                failed: data.failed,
+                currentFile: data.currentFile
+              }));
+              break;
+            case 'error':
+              toast.error(`Error processing ${data.file}: ${data.error}`);
+              break;
+            case 'complete':
+              toast.success(data.message);
+              setIsProcessingAll(false);
+              break;
+          }
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
         }
       };
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        ws.close(); // Will trigger onclose and attempt reconnection
+        setWsState(prev => ({
+          ...prev,
+          connected: false,
+          lastError: 'Connection error occurred'
+        }));
       };
 
-      setSocket(ws);
+      ws.onclose = () => {
+        setWsState(prev => {
+          const newState = {
+            ...prev,
+            connected: false,
+            reconnectAttempt: prev.reconnectAttempt + 1
+          };
+
+          if (newState.reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+            const delay = INITIAL_RETRY_DELAY * Math.pow(2, newState.reconnectAttempt);
+            reconnectTimeout = setTimeout(connect, delay);
+            toast.error(`Connection lost. Retrying in ${delay / 1000} seconds...`);
+          }
+
+          return newState;
+        });
+      };
     };
 
-    connectWebSocket();
+    connect();
 
     return () => {
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.close();
+      if (ws) {
+        ws.close();
       }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
     };
-  }, []);
+  }, [isProcessingAll, wsState.reconnectAttempt]);
 
-  const processAllInvoices = async () => {
-    if (!wsConnected) {
-      toast.error('Not connected to server. Please wait or refresh the page.');
-      return;
-    }
-    
+  const handleProcessAll = async () => {
     setIsProcessingAll(true);
-    setProcessingStatus({ current: 0, total: 0, failed: 0 });
     try {
-      const response = await fetch('http://localhost:8000/api/process_all_invoices');
-      if (!response.ok) throw new Error('Failed to process invoices');
+      const response = await fetch('http://localhost:8000/api/process_all_invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error(await response.text());
       const data = await response.json();
-      
-      // Final status will be updated via WebSocket
-      if (!data.total) {
-        toast('No invoices found', {
-          icon: 'ℹ️',
-        });
-        setProcessingStatus(null);
-      }
-    } catch (err) {
-      console.error('Error processing invoices:', err);
-      toast.error('Failed to process all invoices');
-      setProcessingStatus(null);
+      alert(data.message || "Invoices processed successfully");
+    } catch (error: unknown) {
+      console.error('Error processing invoices:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      alert('Failed to process invoices: ' + errorMessage);
     } finally {
       setIsProcessingAll(false);
     }
@@ -183,7 +210,7 @@ export default function UploadPage() {
       <div className="mt-8 space-y-4">
         <h2 className="text-xl font-semibold">Batch Processing</h2>
         <button
-          onClick={processAllInvoices}
+          onClick={handleProcessAll}
           disabled={isProcessingAll}
           className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:bg-green-300"
         >
@@ -237,9 +264,11 @@ export default function UploadPage() {
 
       {/* Connection status indicator */}
       <div className={`fixed bottom-4 right-4 px-3 py-1 rounded-full text-sm ${
-        wsConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        wsState.connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
       }`}>
-        {wsConnected ? 'Connected' : 'Connecting...'}
+        {wsState.connected ? 'Connected to server' : 
+         wsState.reconnectAttempt > 0 ? `Reconnecting (${wsState.reconnectAttempt}/3)...` : 
+         'Disconnected'}
       </div>
     </div>
   );
