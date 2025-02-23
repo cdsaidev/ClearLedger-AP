@@ -34,6 +34,23 @@ export default function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  // New function to handle viewing PDF
+  const handleViewPdf = async (invoiceId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/invoice_pdf/${invoiceId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to view PDF');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('Error viewing PDF:', error);
+      alert(`Failed to view PDF: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const fetchInvoices = async () => {
     setLoading(true);
     setError(null);
@@ -53,11 +70,11 @@ export default function ReviewPage() {
     fetchInvoices();
   }, []);
 
-  // Handler for form submission using react-hook-form
-  const onSubmit = async (data: any) => {
+  // Updated onSubmit function with corrected backend URL and improved error handling
+  const onSubmit = async (data: FormInputs) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/invoices/${data.invoice_number}`, {
+      const response = await fetch(`http://localhost:8000/api/invoices/${data.invoice_number}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,16 +85,28 @@ export default function ReviewPage() {
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || errorData.message || 'Failed to save');
+        let errorMessage = 'Failed to save invoice';
+        try {
+          const contentType = response.headers.get('Content-Type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.detail || errorData.message || errorMessage;
+          } else {
+            const text = await response.text();
+            errorMessage = `Server returned non-JSON response: ${text.slice(0, 50)}...`;
+          }
+        } catch (err) {
+          errorMessage = 'Failed to parse error response';
+        }
+        throw new Error(errorMessage);
       }
       setSelectedInvoice(null);
       fetchInvoices();
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      console.error('Error saving invoice:', error);
-      alert(`Failed to save invoice: ${error.message}`);
-      setError(`Failed to save invoice: ${error.message}`);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error('Error saving invoice:', err);
+      alert(`Error saving invoice: ${err.message}`);
+      setError(`Failed to save invoice: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -100,7 +129,7 @@ export default function ReviewPage() {
                   <p className="text-sm text-gray-600">Amount: {invoice.total_amount}</p>
                   <p className="text-sm text-gray-600">Status: {invoice.validation_status || 'Unknown'}</p>
                   <button
-                    onClick={() => window.open(`http://localhost:8000/api/invoice_pdf/${invoice.invoice_number}`, '_blank')}
+                    onClick={() => handleViewPdf(invoice.invoice_number)}
                     className="mt-2 text-sm text-blue-600 hover:underline"
                   >
                     View PDF
