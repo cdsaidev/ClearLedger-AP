@@ -78,15 +78,18 @@ export default function ReviewPage() {
       const invoiceId = selectedInvoice?.invoice_number;
       if (!invoiceId) throw new Error('No invoice selected');
       
+      // Format the date as yyyy-MM-dd before sending to backend
+      const formattedData = {
+        vendor_name: data.vendor_name,
+        invoice_number: invoiceId,
+        invoice_date: new Date(data.invoice_date).toISOString().split('T')[0],
+        total_amount: data.total_amount,
+      };
+      
       const response = await fetch(`http://localhost:8000/api/invoices/${invoiceId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendor_name: data.vendor_name,
-          invoice_number: invoiceId, // Use the original invoice_number
-          invoice_date: data.invoice_date,
-          total_amount: data.total_amount,
-        }),
+        body: JSON.stringify(formattedData),
       });
 
       if (!response.ok) {
