@@ -67,7 +67,7 @@ export default function InvoicesPage() {
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.vendor_name}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.invoice_number}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.invoice_date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.total_amount}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">£{invoice.total_amount}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{(invoice.confidence * 100).toFixed(2)}%</td>
                   <td className="px-6 py-4 whitespace-nowrap">{invoice.validation_status?.trim() || "Unknown"}</td>
                 </tr>
