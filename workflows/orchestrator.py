@@ -5,6 +5,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 import asyncio
 import json
+import shutil
+import uuid
 from config.logging_config import logger  # Import singleton logger
 from config.monitoring import Monitoring  # Import Monitoring class
 from agents.extractor_agent import InvoiceExtractionAgent
@@ -12,8 +14,10 @@ from agents.validator_agent import InvoiceValidationAgent
 from agents.matching_agent import PurchaseOrderMatchingAgent
 from agents.human_review_agent import HumanReviewAgent
 
-# Use consistent path for structured invoices
-INVOICES_FILE = Path("data/processed/structured_invoices.json")
+# Constants
+PROCESSED_DIR = Path("data/processed")
+TEMP_DIR = Path("data/temp")
+INVOICES_FILE = PROCESSED_DIR / "structured_invoices.json"
 
 class InvoiceProcessingWorkflow:
     def __init__(self):
@@ -22,6 +26,9 @@ class InvoiceProcessingWorkflow:
         self.validation_agent = InvoiceValidationAgent()
         self.matching_agent = PurchaseOrderMatchingAgent()
         self.review_agent = HumanReviewAgent()
+        # Create necessary directories
+        PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+        TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
     async def _retry_with_backoff(self, func, max_retries=3, base_delay=1):
         logger.debug(f"Starting retry mechanism with max_retries={max_retries}, base_delay={base_delay}")
@@ -41,6 +48,12 @@ class InvoiceProcessingWorkflow:
     async def process_invoice(self, document_path: str) -> dict:
         logger.info(f"Starting invoice processing for: {document_path}")
         logger.debug(f"Processing pipeline initiated for document: {document_path}")
+
+        # Save a copy of the original PDF if it's not already in temp
+        if not str(document_path).startswith(str(TEMP_DIR)):
+            temp_pdf = TEMP_DIR / f"{uuid.uuid4()}.pdf"
+            shutil.copy2(document_path, temp_pdf)
+            document_path = str(temp_pdf)
 
         monitoring = Monitoring()
         extraction_time = None
@@ -208,6 +221,12 @@ class InvoiceProcessingWorkflow:
         }
         self._save_invoice_entry(invoice_entry)
 
+        # After successful extraction, save the PDF with the invoice number
+        if extracted_dict.get('invoice_number'):
+            pdf_path = PROCESSED_DIR / f"{extracted_dict['invoice_number']}.pdf"
+            shutil.copy2(document_path, pdf_path)
+            logger.info(f"Saved PDF for invoice {extracted_dict['invoice_number']} to {pdf_path}")
+
         result = {
             "extracted_data": extracted_dict,
             "validation_result": validation_result.model_dump(),
@@ -225,7 +244,7 @@ class InvoiceProcessingWorkflow:
 
     def _save_invoice_entry(self, invoice_entry):
         try:
-            os.makedirs(os.path.dirname(INVOICES_FILE), exist_ok=True)
+            PROCESSED_DIR.mkdir(exist_ok=True)
             try:
                 with open(INVOICES_FILE, "r") as f:
                     all_invoices = json.load(f)
