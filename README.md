@@ -1,182 +1,296 @@
 # 📊 Clear Ledger AP (Next.js Frontend)
 
+<div align="center">
+
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Node.js](https://img.shields.io/badge/Node.js-Latest-green.svg)](https://nodejs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-Latest-black.svg)](https://nextjs.org/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT4-412991.svg)](https://openai.com/)
+
+*An intelligent invoice processing system leveraging LangChain's multi-agent workflow*
+
+[Overview](#-overview) •
+[Features](#-key-features) •
+[Development Journey](#-development-journey) •
+[Architecture](#-architecture) •
+[Setup Guide](#-setup-guide) •
+[Usage](#-usage-guide) •
+[Progress](#-project-progress)
+
+</div>
+
 ## 🎯 Overview
 
-This repository contains the Next.js frontend version of the Clear Ledger AP, an intelligent solution leveraging LangChain's multi-agent workflow to automate invoice extraction, validation, and purchase order (PO) matching. Built for the "Technical Challenge: Intelligent Invoice Processing with LangChain Multi-Agent Workflow," it aims to reduce manual processing time by 75% and minimize errors. A Streamlit frontend version is available in another repository for those interested in a simpler, Python-based interface, but this README focuses on the Next.js frontend version.
+This repository houses the Next.js frontend version of the Clear Ledger AP, built as a technical challenge response. The system demonstrates an intelligent solution that leverages LangChain's multi-agent workflow to automate invoice processing, aiming to reduce manual processing time by 75% while minimizing errors.
+
+> 💡 *A Streamlit frontend version is available in a separate repository for those interested in a simpler, Python-based interface.*
 
 ## 📋 Key Features
 
-- Processes PDFs from:
-  - data/raw/invoices/ (35 invoices)
-  - data/raw/test_samples/ (3 PDFs)
-- Integrates multiple agents for extraction, validation, PO matching, human review, and fallback procedures
-- Implements RAG-based error handling and performance monitoring
-- Utilizes async processing with robust error handling, structured logging, and retries
-- Modern Next.js frontend with pages for uploading invoices, viewing results, reviewing flagged cases, and tracking metrics
+- **Automated Processing Pipeline**
+  - Processes PDFs from configurable directories:
+    - `data/raw/invoices/` (35 invoices)
+    - `data/raw/test_samples/` (3 PDFs)
+  - Multi-agent system for extraction, validation, and matching
+  - RAG-based error handling with FAISS
+  - Asynchronous processing with robust error management
 
-## 📅 Development Timeline
+- **Modern Frontend Interface**
+  - Next.js-powered dashboard
+  - Real-time processing updates
+  - Interactive invoice review system
+  - Comprehensive metrics visualization
 
-### Day 1: Project Planning and Setup
-- Organized a 10-day workflow and analyzed challenge requirements
-- Initialized repository with FastAPI backend and Next.js frontend structure
-- Installed initial dependencies (langchain==0.2.16, pdfplumber, pytesseract)
+- **Enterprise-Grade Architecture**
+  - FastAPI backend with WebSocket support
+  - Structured logging and monitoring
+  - Comprehensive test coverage
+  - Containerized deployment ready
 
-### Day 2: Invoice Extraction and Validation
-- Developed InvoiceExtractionAgent and InvoiceValidationAgent with Pydantic models
-- Implemented PDF parsing, OCR, and anomaly detection
+## 📅 Development Journey
 
-### Day 3: Advanced Error Handling and RAG
-- Integrated FAISS-based RAG for error handling
-- Switched from Mistral 7B to OpenAI's gpt-4o-mini API for reliable extraction
-- Added performance monitoring and fallback mechanisms
+### Week 1: Foundation & Core Development
 
-### Day 4: PO Matching and Frontend Transition
-- Implemented PurchaseOrderMatchingAgent with fuzzy matching
-- Migrated from initial Streamlit frontend to Next.js for scalability
+#### Day 1: Project Planning and Setup
+- 🎯 **Objectives Achieved**
+  - Organized detailed 10-day development roadmap
+  - Analyzed technical challenge requirements
+  - Initialized project structure
+  
+- 🛠️ **Technical Implementation**
+  - Set up FastAPI backend and Next.js frontend
+  - Installed core dependencies:
+    - LangChain (0.2.16)
+    - PDF processing (pdfplumber)
+    - OCR capabilities (pytesseract)
 
-## 🔍 Overall Project Structure
+#### Day 2: Invoice Processing Foundation
+- 🎯 **Objectives Achieved**
+  - Implemented core extraction logic
+  - Established validation framework
+  
+- 🛠️ **Technical Implementation**
+  - Developed InvoiceExtractionAgent with Pydantic models
+  - Implemented PDF parsing and OCR pipeline
+  - Created validation system with anomaly detection
 
+#### Day 3: Intelligence & Error Handling
+- 🎯 **Objectives Achieved**
+  - Enhanced system reliability
+  - Improved extraction accuracy
+  
+- 🛠️ **Technical Implementation**
+  - Integrated FAISS-based RAG for error handling
+  - Migrated from Mistral 7B to OpenAI's gpt-4o-mini API
+  - Implemented performance monitoring
+  - Added fallback mechanisms
+
+#### Day 4: Advanced Features & Frontend
+- 🎯 **Objectives Achieved**
+  - Completed PO matching system
+  - Enhanced user interface
+  
+- 🛠️ **Technical Implementation**
+  - Built PurchaseOrderMatchingAgent with fuzzy matching
+  - Migrated from Streamlit to Next.js
+  - Implemented advanced frontend features
+
+#### Day 5: System Refinement
+- 🎯 **Objectives Achieved**
+  - Resolved critical system issues
+  - Enhanced user experience
+  
+- 🛠️ **Technical Fixes**
+  1. **WebSocket Connectivity**
+     - Issue: Connection failures during batch processing
+     - Solution: Implemented proper WebSocket handling
+     
+  2. **File Upload Reliability**
+     - Issue: 422 errors with invalid files
+     - Solution: Enhanced error handling and user feedback
+     
+  3. **PDF Viewing System**
+     - Issue: 404 errors in PDF preview
+     - Solution: Restructured PDF storage and serving
+     
+  4. **Data Format Consistency**
+     - Issue: Date format inconsistencies
+     - Solution: Standardized date handling (yyyy-MM-dd)
+     
+  5. **Batch Processing UX**
+     - Issue: Multiple submission issues
+     - Solution: Implemented proper loading states and safeguards
+
+## 🏗️ Architecture
+
+### Project Structure
 ```
-agents/: Contains agents for extraction, validation, matching, and fallback
-api/: RESTful API endpoints
-config/: Configuration files
-data/: Raw PDFs and processed outputs
-data_processing/: Modules for parsing, OCR, and RAG
-models/: Pydantic models
-workflows/: Pipeline orchestration
-tests/: Testing suites
-frontend-nextjs/: Next.js frontend code
-  ├── public/: Static assets
-  └── src/
-      ├── components/: Reusable components
-      ├── pages/: Routes
-      └── styles/: CSS files
+clear_ledger_nextjs/
+├── agents/                    # AI Agents
+│   ├── base_agent.py         # Base agent functionality
+│   ├── extractor_agent.py    # Invoice data extraction
+│   ├── validator_agent.py    # Data validation
+│   ├── matching_agent.py     # PO matching
+│   ├── human_review_agent.py # Manual review handling
+│   └── fallback_agent.py     # Backup extraction
+│
+├── api/                      # Backend Services
+│   ├── app.py               # Main FastAPI application
+│   ├── human_review_api.py  # Review endpoints
+│   └── review_api.py        # Review logic
+│
+├── config/                   # Configuration
+│   ├── logging_config.py    # Logging setup
+│   ├── monitoring.py        # Performance tracking
+│   └── settings.py          # System settings
+│
+├── data/                     # Data Storage
+│   ├── raw/                 # Input data
+│   ├── processed/           # Processed results
+│   └── temp/                # Temporary files
+│
+├── data_processing/          # Processing Logic
+│   ├── document_parser.py   # PDF handling
+│   ├── ocr_helper.py        # OCR processing
+│   ├── rag_helper.py        # RAG implementation
+│   └── [other modules]      # Additional processors
+│
+├── frontend-nextjs/         # Frontend Application
+│   ├── src/
+│   │   ├── components/      # React components
+│   │   ├── pages/          # Application routes
+│   │   └── styles/         # CSS styling
+│   └── [config files]       # Frontend configuration
+│
+└── [other project files]    # Additional resources
 ```
 
-## ✅ Completed (Days 1–4)
-- Backend Development: Multi-agent system implementation
-- Initial Frontend: Streamlit frontend (streamlit-frontend branch)
-- Transition to Next.js: Migrated for production use
-- Model Transition: Switched to OpenAI gpt-4o-mini API
-- RAG Integration: FAISS-based error handling
+## 🔧 Setup Guide
 
-## 🚀 New Frontend: Next.js Highlights
-- Upload Page: Single and batch uploads with deduplication
-- Invoices Page: Lists processed invoices with status indicators
-- Review Page: Full field editing, PDF previews, and seamless updates
-- Metrics Page: Tracks total invoices, valid invoices, and processing times
-- Improvements: Enhanced form validation, toast notifications, and optimized state management
-
-## 📈 Remaining Workflow (Days 5–10)
-- Day 5: Dockerize application, set up CI/CD, develop analytics dashboard
-- Day 6: Expand documentation, enhance test coverage, refactor code
-- Day 7: Conduct end-to-end testing, optimize performance, prepare submission
-
-## 🔧 Setup and Usage Instructions
-
-### 📋 Project Overview
-The system combines a FastAPI backend and a Next.js frontend to automate invoice processing with human review capabilities.
-
-### 📦 Prerequisites
-- Python 3.12 or higher
-- Node.js and npm
-- Virtual environment (recommended)
+### Prerequisites
+- Python 3.12+
+- Node.js (Latest LTS)
+- Virtual environment tool
 - Git
-- Sample invoice PDFs and vendor_data.csv
+- Sample data files
 
-### ⚙️ Setup Instructions
+### Installation Steps
 
-1. **Clone the Repository**
-```bash
-git clone <repository-url>
-cd clear_ledger_nextjs
-```
+1. **Clone Repository**
+   ```bash
+   git clone <repository-url>
+   cd clear_ledger_nextjs
+   ```
 
-2. **Create and Activate Virtual Environment**
-```bash
-python -m venv venv
-# On Linux/Mac:
-source venv/bin/activate
-# On Windows:
-venv\Scripts\activate
-```
+2. **Python Environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # OR
+   venv\Scripts\activate     # Windows
+   ```
 
-3. **Install Backend Dependencies**
-```bash
-pip install -r requirements.txt
-sudo apt-get install libblas-dev liblapack-dev
-```
+3. **Backend Setup**
+   ```bash
+   pip install -r requirements.txt
+   sudo apt-get install libblas-dev liblapack-dev
+   ```
 
-4. **Install Frontend Dependencies**
-```bash
-cd frontend-nextjs
-npm install
-cd ..
-```
+4. **Frontend Setup**
+   ```bash
+   cd frontend-nextjs
+   npm install
+   ```
 
-5. **Create Environment File**
-```bash
-# Create .env file in project root
-echo "OPENAI_API_KEY=your_api_key_here" > .env
-```
-Replace `your_api_key_here` with your actual OpenAI API key.
+5. **Environment Configuration**
+   ```bash
+   echo "OPENAI_API_KEY=your_api_key_here" > .env
+   ```
 
-6. **Verify Data Structure**
-- Ensure PDFs are in data/raw/invoices/ and data/raw/test_samples/
-- Verify data/raw/vendor_data.csv exists
+6. **Data Verification**
+   - Confirm presence of:
+     - PDFs in `data/raw/invoices/`
+     - Test files in `data/raw/test_samples/`
+     - `data/raw/vendor_data.csv`
 
+## 🚀 Usage Guide
 
-### 🚀 Running the Application
+### Starting Services
 
-1. **Start Backend Services**
-```bash
-# Terminal 1: Main API
-python -m uvicorn api.app:app --reload --port 8000
+1. **Backend APIs**
+   ```bash
+   # Terminal 1: Main API
+   python -m uvicorn api.app:app --reload --port 8000
 
-# Terminal 2: Human Review API
-python -m uvicorn api.human_review_api:app --reload --port 8001
-```
+   # Terminal 2: Review API
+   python -m uvicorn api.human_review_api:app --reload --port 8001
+   ```
 
-2. **Start Frontend**
-```bash
-cd frontend-nextjs
-npm run dev
-```
+2. **Frontend Application**
+   ```bash
+   cd frontend-nextjs
+   npm run dev
+   ```
 
-3. **Access the Application**
-- Browser: http://localhost:3000
-- Main API: http://localhost:8000
-- Review API: http://localhost:8001
+### Accessing the System
 
-### 🧪 Testing the System
+- **Main Application**: http://localhost:3000
+- **API Endpoints**:
+  - Main API: http://localhost:8000
+  - Review API: http://localhost:8001
 
-1. **Upload Invoices**
-- Go to http://localhost:3000/upload
-- Upload a PDF
-- Submit to process
+### Core Workflows
 
-2. **View Results**
-- http://localhost:3000/invoices: Processed invoices
-- http://localhost:3000/review: Flagged invoices
-- http://localhost:3000/metrics: Performance data
+1. **Invoice Processing**
+   - Navigate to http://localhost:3000/upload
+   - Upload invoice PDF(s)
+   - Monitor processing status
 
-3. **Review and Correct**
-- Edit flagged invoices on the review page
-- Submit corrections
+2. **Results Management**
+   - Processed invoices: `/invoices`
+   - Flagged items: `/review`
+   - Performance metrics: `/metrics`
 
-4. **Faulty Invoice Handling**
-- RAG compares invoices against known errors
-- High-confidence invoices (≥0.9) process automatically
+3. **Review Process**
+   - Access review interface
+   - Edit flagged invoices
+   - Submit corrections
 
-### 📝 Important Notes
-- Duplicate invoices are flagged by invoice_number
-- Low confidence (<0.9) triggers human review
-- Processing is asynchronous
-- Metrics and logs are stored for analysis
+### System Behavior
 
+- **Duplicate Detection**: Automatic flagging by invoice_number
+- **Confidence Thresholds**:
+  - ≥0.9: Automatic processing
+  - <0.9: Human review required
+- **Processing Mode**: Asynchronous execution
+- **Data Persistence**: Metrics and logs maintained
 
-### 📢 Recent Updates
-- Added form validation with react-hook-form and yup
-- Implemented toast notifications with react-hot-toast
-- Improved PDF previews with react-pdf
-- Enhanced backend with OpenAI API and stricter linting/testing
+## 📈 Project Progress
+
+### Completed (Days 1-5)
+- ✅ Multi-agent system implementation
+- ✅ Frontend migration (Streamlit → Next.js)
+- ✅ OpenAI API integration
+- ✅ RAG-based error handling
+- ✅ Critical system improvements
+
+### Remaining Tasks (Days 6-8)
+- 📋 Day 6: Containerization & CI/CD
+- 📋 Day 7: Documentation & Testing
+- 📋 Day 8: Performance Optimization & Submission
+
+### Recent Enhancements
+- 🆕 Form validation (react-hook-form + yup)
+- 🆕 Toast notifications (react-hot-toast)
+- 🆕 PDF preview system (react-pdf)
+- 🆕 Enhanced error handling
+- 🆕 WebSocket stability improvements
+
+---
+
+<div align="center">
+
+**Built with ❤️ for the Technical Challenge**
+
+</div>
