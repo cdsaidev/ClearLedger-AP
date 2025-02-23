@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { getInvoicePdf } from '../../lib/api';
 
 // Updated Yup schema
 const schema = yup.object().shape({
@@ -36,18 +37,45 @@ export default function ReviewPage() {
 
   // New function to handle viewing PDF
   const handleViewPdf = async (invoiceId: string) => {
+    let objectUrl: string | undefined;
+    
+    if (!invoiceId || invoiceId === 'undefined') {
+      toast.error("No invoice ID available to view PDF.");
+      return;
+    }
+    
     try {
-      const response = await fetch(`http://localhost:8000/api/invoice_pdf/${invoiceId}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to view PDF');
+      const blob = await getInvoicePdf(invoiceId);
+      objectUrl = window.URL.createObjectURL(blob);
+      const newWindow = window.open(objectUrl, '_blank');
+      
+      // If window failed to open, clean up immediately
+      if (!newWindow) {
+        toast.error('Failed to open PDF. Please check your popup blocker settings.');
+        if (objectUrl) window.URL.revokeObjectURL(objectUrl);
+        return;
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      
+      // Clean up the URL after the window loads or after a timeout
+      const cleanup = () => {
+        if (objectUrl) {
+          window.URL.revokeObjectURL(objectUrl);
+          objectUrl = undefined;
+        }
+      };
+      
+      setTimeout(cleanup, 1000);
+      
     } catch (error) {
       console.error('Error viewing PDF:', error);
-      toast.error(`Failed to view PDF: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof Error && error.message === 'PDF not found for this invoice') {
+        toast.error('PDF is not available for this invoice. It may have been moved or deleted.');
+      } else {
+        toast.error(`Failed to view PDF: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    } finally {
+      // Ensure cleanup happens even if there's an error
+      if (objectUrl) window.URL.revokeObjectURL(objectUrl);
     }
   };
 
