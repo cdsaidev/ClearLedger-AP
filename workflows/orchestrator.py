@@ -1,5 +1,6 @@
 import sys
 import os
+from pathlib import Path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 import asyncio
@@ -10,6 +11,9 @@ from agents.extractor_agent import InvoiceExtractionAgent
 from agents.validator_agent import InvoiceValidationAgent
 from agents.matching_agent import PurchaseOrderMatchingAgent
 from agents.human_review_agent import HumanReviewAgent
+
+# Use consistent path for structured invoices
+INVOICES_FILE = Path("data/processed/structured_invoices.json")
 
 class InvoiceProcessingWorkflow:
     def __init__(self):
@@ -219,18 +223,25 @@ class InvoiceProcessingWorkflow:
         logger.debug(f"Final result: {result}")
         return result
 
-    def _save_invoice_entry(self, invoice_entry, output_file="data/processed/structured_invoices.json"):
+    def _save_invoice_entry(self, invoice_entry):
         try:
-            os.makedirs("data/processed", exist_ok=True)
+            os.makedirs(os.path.dirname(INVOICES_FILE), exist_ok=True)
             try:
-                with open(output_file, "r") as f:
+                with open(INVOICES_FILE, "r") as f:
                     all_invoices = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 all_invoices = []
-            all_invoices.append(invoice_entry)
-            with open(output_file, "w") as f:
+            # Check for existing invoice with same number and update it
+            for idx, inv in enumerate(all_invoices):
+                if inv.get('invoice_number') == invoice_entry.get('invoice_number'):
+                    all_invoices[idx] = invoice_entry
+                    break
+            else:
+                # No existing invoice found, append new one
+                all_invoices.append(invoice_entry)
+            with open(INVOICES_FILE, "w") as f:
                 json.dump(all_invoices, f, indent=4)
-            logger.info(f"Saved invoice entry to {output_file}")
+            logger.info(f"Saved invoice entry to {INVOICES_FILE}")
         except Exception as e:
             logger.error(f"Failed to save invoice entry: {str(e)}")
 
