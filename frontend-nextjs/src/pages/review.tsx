@@ -67,12 +67,17 @@ export default function ReviewPage() {
           total_amount: data.total_amount,
         }),
       });
-      if (!response.ok) throw new Error('Failed to save');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || errorData.message || 'Failed to save');
+      }
       setSelectedInvoice(null);
       fetchInvoices();
     } catch (err) {
-      console.error('Save error:', err);
-      setError('Failed to save changes. Please try again.');
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('Error saving invoice:', error);
+      alert(`Failed to save invoice: ${error.message}`);
+      setError(`Failed to save invoice: ${error.message}`);
     } finally {
       setLoading(false);
     }
