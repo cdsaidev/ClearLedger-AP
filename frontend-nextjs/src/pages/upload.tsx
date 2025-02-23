@@ -108,7 +108,9 @@ export default function UploadPage() {
       
       // Final status will be updated via WebSocket
       if (!data.total) {
-        toast.info(data.message); // Show "No invoices found" message
+        toast('No invoices found', {
+          icon: 'ℹ️',
+        });
         setProcessingStatus(null);
       }
     } catch (err) {
