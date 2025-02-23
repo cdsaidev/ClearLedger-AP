@@ -113,9 +113,17 @@ npm install
 cd ..
 ```
 
-5. **Verify Data Structure**
+5. **Create Environment File**
+```bash
+# Create .env file in project root
+echo "OPENAI_API_KEY=your_api_key_here" > .env
+```
+Replace `your_api_key_here` with your actual OpenAI API key.
+
+6. **Verify Data Structure**
 - Ensure PDFs are in data/raw/invoices/ and data/raw/test_samples/
 - Verify data/raw/vendor_data.csv exists
+
 
 ### 🚀 Running the Application
 
@@ -165,18 +173,6 @@ npm run dev
 - Processing is asynchronous
 - Metrics and logs are stored for analysis
 
-### 📦 Setup / Installation
-
-**Backend Dependencies**
-```bash
-pip install -r requirements.txt
-```
-
-**Frontend Dependencies**
-```bash
-cd frontend-nextjs
-npm install react-hook-form yup @hookform/resolvers react-hot-toast react-pdf
-```
 
 ### 📢 Recent Updates
 - Added form validation with react-hook-form and yup
