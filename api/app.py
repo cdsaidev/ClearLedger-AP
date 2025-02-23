@@ -27,22 +27,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-OUTPUT_FILE = Path("data/processed/structured_invoices.json")
-PDF_OUTPUT_DIR = Path("data/processed")
-
-
-def save_pdf_file(temp_path: Path, invoice_number: str) -> bool:
-    """Save PDF file to processed directory."""
-    try:
-        PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = PDF_OUTPUT_DIR / f"{invoice_number}.pdf"
-        if isinstance(temp_path, str):
-            temp_path = Path(temp_path)
-        # Copy file
-        copyfile(temp_path, output_path)
-        return True
-    except Exception as e:
-        return False
+OUTPUT_FILE = Path("data/structured_invoice.json")
 
 
 @app.get("/api/process_all_invoices")
@@ -54,8 +39,7 @@ async def process_all_invoices():
     for file in invoice_files:
         result = await workflow.process_invoice(file)
         save_invoice(result['extracted_data'])
-        if save_pdf_file(file, result['extracted_data']['invoice_number']):
-            results.append(result)
+        results.append(result)
     return {"message": f"Processed {len(results)} invoices"}
 
 
@@ -89,8 +73,6 @@ async def upload_invoice(file: UploadFile = File(...)):
             f.write(await file.read())
         result = await workflow.process_invoice(str(temp_path))
         save_invoice(result['extracted_data'])
-        if not save_pdf_file(temp_path, result['extracted_data']['invoice_number']):
-            raise HTTPException(status_code=500, detail="Failed to save PDF file")
         temp_path.unlink()
         return result
     except Exception as e:
@@ -114,14 +96,7 @@ async def get_invoices():
 
 @app.get("/api/invoice_pdf/{invoice_number}")
 async def get_invoice_pdf(invoice_number: str):
-    pdf_path = PDF_OUTPUT_DIR / f"{invoice_number}.pdf"
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Invoice PDF not found")
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=f"{invoice_number}.pdf"
-    )
+    raise HTTPException(status_code=404, detail="PDF saving is disabled")
 
 
 class InvoiceUpdate(BaseModel):
