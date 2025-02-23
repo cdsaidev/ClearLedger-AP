@@ -98,53 +98,34 @@ export default function ReviewPage() {
     fetchInvoices();
   }, []);
 
-  // Updated onSubmit function with correct invoice_id handling
+  // Updated onSubmit function to format date fields as yyyy-MM-dd before sending to backend
   const onSubmit = async (data: FormInputs) => {
     setLoading(true);
-    console.log("Selected invoice:", selectedInvoice?.invoice_number); // Log invoice ID being updated
     try {
       const invoiceId = selectedInvoice?.invoice_number;
       if (!invoiceId) throw new Error('No invoice selected');
-      
-      // Format the date as yyyy-MM-dd before sending to backend
+
       const formattedData = {
-        vendor_name: data.vendor_name,
-        invoice_number: invoiceId,
+        ...data,
         invoice_date: new Date(data.invoice_date).toISOString().split('T')[0],
-        total_amount: data.total_amount,
+        invoice_number: invoiceId
       };
-      
+
       const response = await fetch(`http://localhost:8000/api/invoices/${invoiceId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formattedData),
       });
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to save invoice';
-        try {
-          const contentType = response.headers.get('Content-Type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.detail || errorData.message || errorMessage;
-          } else {
-            const text = await response.text();
-            errorMessage = `Server error: ${text}`;
-          }
-        } catch (err) {
-          errorMessage = 'Failed to parse error response';
-        }
-        throw new Error(errorMessage);
-      }
-
+      if (!response.ok) throw new Error(await response.text());
+      console.log('Invoice updated successfully');
       toast.success('Invoice updated successfully');
       setSelectedInvoice(null);
-      fetchInvoices(); // Refresh the list
+      fetchInvoices();
     } catch (error) {
       console.error('Error saving invoice:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to save invoice: ${errorMessage}`);
-      setError(errorMessage);
+      toast.error('Failed to save invoice');
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
