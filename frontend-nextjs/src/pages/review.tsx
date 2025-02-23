@@ -47,7 +47,7 @@ export default function ReviewPage() {
       window.open(url, '_blank');
     } catch (error) {
       console.error('Error viewing PDF:', error);
-      alert(`Failed to view PDF: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`Failed to view PDF: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -70,20 +70,25 @@ export default function ReviewPage() {
     fetchInvoices();
   }, []);
 
-  // Updated onSubmit function with corrected backend URL and improved error handling
+  // Updated onSubmit function with correct invoice_id handling
   const onSubmit = async (data: FormInputs) => {
     setLoading(true);
+    console.log("Selected invoice:", selectedInvoice?.invoice_number); // Log invoice ID being updated
     try {
-      const response = await fetch(`http://localhost:8000/api/invoices/${data.invoice_number}`, {
+      const invoiceId = selectedInvoice?.invoice_number;
+      if (!invoiceId) throw new Error('No invoice selected');
+      
+      const response = await fetch(`http://localhost:8000/api/invoices/${invoiceId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vendor_name: data.vendor_name,
-          invoice_number: data.invoice_number,
+          invoice_number: invoiceId, // Use the original invoice_number
           invoice_date: data.invoice_date,
           total_amount: data.total_amount,
         }),
       });
+
       if (!response.ok) {
         let errorMessage = 'Failed to save invoice';
         try {
@@ -93,20 +98,22 @@ export default function ReviewPage() {
             errorMessage = errorData.detail || errorData.message || errorMessage;
           } else {
             const text = await response.text();
-            errorMessage = `Server returned non-JSON response: ${text.slice(0, 50)}...`;
+            errorMessage = `Server error: ${text}`;
           }
         } catch (err) {
           errorMessage = 'Failed to parse error response';
         }
         throw new Error(errorMessage);
       }
+
+      toast.success('Invoice updated successfully');
       setSelectedInvoice(null);
-      fetchInvoices();
+      fetchInvoices(); // Refresh the list
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      console.error('Error saving invoice:', err);
-      alert(`Error saving invoice: ${err.message}`);
-      setError(`Failed to save invoice: ${err.message}`);
+      console.error('Error saving invoice:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to save invoice: ${errorMessage}`);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
