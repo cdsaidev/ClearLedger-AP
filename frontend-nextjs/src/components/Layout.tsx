@@ -32,6 +32,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   Metrics
                 </Link>
+                <Link 
+                  href="/anomalies" 
+                  className="text-gray-700 hover:text-blue-500 hover:border-blue-500 px-3 py-2 text-sm font-medium border-b-2 border-transparent"
+                >
+                  Anomalies
+                </Link>
               </div>
             </div>
           </div>
