@@ -86,20 +86,26 @@ class InvoiceProcessingWorkflow:
             extracted_dict["validation_status"] = validation_result.status
             
             if validation_result.status != "valid":
-                logger.warning(f"Skipping PO matching due to validation failure: {validation_result}")
+                logger.warning(f"Invoice validation failed: {validation_result}")
+                # Mark as anomaly if non-invoice (e.g., missing vendor_name)
+                extracted_dict["review_status"] = "needs_review"
+                extracted_dict["confidence"] = 0.1
+                extracted_dict["file_name"] = os.path.basename(document_path)
+                extracted_dict["reason"] = "Non-invoice document detected"
                 invoice_entry = {
                     **extracted_dict,
                     "validation_errors": validation_result.errors,
                     "matching_status": "skipped",
-                    "review_status": "skipped",
+                    "review_status": "needs_review",
                     "extraction_time": extraction_time,
                     "validation_time": validation_time,
                     "matching_time": 0,
                     "review_time": 0,
                     "total_time": extraction_time + validation_time
                 }
-                self._save_invoice_entry(invoice_entry)
+                self._save_anomaly_entry(invoice_entry)
                 return {
+                    "anomaly": True,
                     "extracted_data": extracted_dict,
                     "validation_result": validation_result.model_dump(),
                     "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0},
@@ -123,7 +129,16 @@ class InvoiceProcessingWorkflow:
                 "review_time": 0,
                 "total_time": extraction_time + validation_time
             }
-            self._save_invoice_entry(invoice_entry)
+            if "'vendor_name'" in str(e):
+                invoice_entry.update({
+                    "review_status": "needs_review",
+                    "confidence": 0.1,
+                    "file_name": os.path.basename(document_path),
+                    "reason": "Non-invoice document detected"
+                })
+                self._save_anomaly_entry(invoice_entry)
+            else:
+                self._save_invoice_entry(invoice_entry)
             return invoice_entry
 
         # Matching
@@ -218,6 +233,21 @@ class InvoiceProcessingWorkflow:
             logger.info(f"Saved invoice entry to {output_file}")
         except Exception as e:
             logger.error(f"Failed to save invoice entry: {str(e)}")
+
+    def _save_anomaly_entry(self, anomaly_entry, output_file="data/anomalies.json"):
+        try:
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            try:
+                with open(output_file, "r") as f:
+                    all_anomalies = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                all_anomalies = []
+            all_anomalies.append(anomaly_entry)
+            with open(output_file, "w") as f:
+                json.dump(all_anomalies, f, indent=4)
+            logger.info(f"Saved anomaly entry to {output_file}")
+        except Exception as e:
+            logger.error(f"Failed to save anomaly entry: {str(e)}")
 
 async def main():
     workflow = InvoiceProcessingWorkflow()
