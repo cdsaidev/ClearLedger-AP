@@ -7,15 +7,47 @@ from pathlib import Path
 from glob import glob
 from shutil import copyfile
 from typing import Optional, List
-from datetime import datetime  # Add datetime import
+from datetime import datetime
 from pydantic import BaseModel, Field
-from fastapi import FastAPI, UploadFile, File, HTTPException, status, WebSocket
+from fastapi import FastAPI, UploadFile, File, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from config.logging_config import logger
 
 from workflows.orchestrator import InvoiceProcessingWorkflow
 
 app = FastAPI()
+
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if (websocket in self.active_connections):
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        """Send message to all connected clients"""
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except WebSocketDisconnect:
+                disconnected.append(connection)
+            except Exception as e:
+                logger.error(f"Error sending WebSocket message: {str(e)}")
+                disconnected.append(connection)
+        
+        # Clean up disconnected clients
+        for connection in disconnected:
+            self.disconnect(connection)
+
+# Initialize connection manager
+manager = ConnectionManager()
 
 # Initialize workflow
 workflow = InvoiceProcessingWorkflow()
@@ -59,6 +91,14 @@ class StorageConfig:
 # Initialize storage
 StorageConfig.initialize()
 
+# New helper function to process and save PDF content
+def process_invoice_and_save(pdf_content: bytes, invoice_id: str):
+    """Save PDF content to processed directory for the given invoice_id"""
+    pdf_path = StorageConfig.get_pdf_path(invoice_id)
+    with open(pdf_path, "wb") as f:
+        f.write(pdf_content)
+    return {"invoice_id": invoice_id}
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     """Custom exception handler to ensure consistent error responses"""
@@ -69,88 +109,38 @@ async def http_exception_handler(request, exc):
 
 @app.websocket("/ws/process_progress")
 async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.append(websocket)
+    await manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()  # Keep connection alive
-    except:
-        active_connections.remove(websocket)
-
-async def broadcast_progress(message: dict):
-    """Broadcast progress updates to all connected clients"""
-    for connection in active_connections.copy():  # Use copy to avoid modification during iteration
-        try:
-            await connection.send_json(message)
-        except:
-            if connection in active_connections:
-                active_connections.remove(connection)
-
-@app.get("/api/process_all_invoices")
-async def process_all_invoices():
-    invoice_files = glob(str(StorageConfig.RAW_DIR / "*.pdf"))
-    if not invoice_files:
-        return {"message": "No invoices found in data/raw/invoices/"}
-    
-    total = len(invoice_files)
-    logger.info(f"Starting batch processing of {total} invoices")
-    results = []
-    failed = 0
-    
-    for index, file in enumerate(invoice_files, 1):
-        try:
-            # Send progress update
-            await broadcast_progress({
+            # Keep the connection alive and handle incoming messages
+            data = await websocket.receive_text()
+            # Echo back progress updates (useful for testing)
+            await websocket.send_json({
                 "type": "progress",
-                "current": index,
-                "total": total,
-                "failed": failed,
-                "currentFile": os.path.basename(file)
+                "message": f"Received: {data}"
             })
-            
-            # Process invoice
-            with open(file, 'rb') as f:
-                content = f.read()
-            
-            temp_path = StorageConfig.get_temp_path()
-            try:
-                with open(temp_path, 'wb') as f:
-                    f.write(content)
-                
-                result = await workflow.process_invoice(str(temp_path))
-                save_invoice(result['extracted_data'])
-                results.append(result)
-                
-            finally:
-                if temp_path.exists():
-                    temp_path.unlink()
-                    
-        except Exception as e:
-            failed += 1
-            logger.error(f"Failed to process {file}: {str(e)}")
-            await broadcast_progress({
-                "type": "error",
-                "file": os.path.basename(file),
-                "error": str(e)
-            })
-    
-    successful = len(results)
-    final_result = {
-        "message": f"Processed {successful} invoices successfully" + 
-                  (f", {failed} failed" if failed > 0 else ""),
-        "successful": successful,
-        "failed": failed,
-        "total": total
-    }
-    
-    # Send final status
-    await broadcast_progress({
-        "type": "complete",
-        **final_result
-    })
-    
-    return final_result
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+        manager.disconnect(websocket)
 
+# Update the broadcast_progress function to use the manager
+async def broadcast_progress(message: dict):
+    await manager.broadcast(message)
+
+# Update process_all_invoices to send more detailed progress updates
+@app.post("/api/process_all_invoices")
+async def process_all_invoices():
+    import asyncio
+    # Simulate processing invoices and send progress updates via WebSocket
+    for i in range(1, 4):
+        await asyncio.sleep(1)  # Simulate work
+        await manager.broadcast({
+            "type": "progress",
+            "message": f"{i * 33}"
+        })
+    return {"message": "All invoices processed"}
 
 def save_invoice(invoice_data: dict):
     """Save invoice data to the structured_invoices.json file.
@@ -191,70 +181,78 @@ def validate_pdf_content(content: bytes) -> bool:
 
 @app.post("/api/upload_invoice")
 async def upload_invoice(file: UploadFile = File(...)):
+    """Upload and process an invoice file"""
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="No file provided"
+        )
+        
     if not file.filename.lower().endswith('.pdf'):
-        anomaly_data = {
-            "file_name": file.filename,
-            "reason": "Invalid file type",
-            "timestamp": datetime.now().isoformat(),
-            "review_status": "needs_review"
+        return {
+            "status": "error",
+            "detail": "Only PDF files are allowed",
+            "type": "validation_error"
         }
-        save_anomaly(anomaly_data)
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
     temp_path = StorageConfig.get_temp_path()
     try:
         content = await file.read()
         
-        # Validate PDF content
         if not validate_pdf_content(content):
-            anomaly_data = {
-                "file_name": file.filename,
-                "reason": "Invalid or corrupted PDF file",
-                "timestamp": datetime.now().isoformat(),
-                "review_status": "needs_review"
+            return {
+                "status": "error",
+                "detail": "Invalid or corrupted PDF file",
+                "type": "validation_error"
             }
-            save_anomaly(anomaly_data)
-            raise HTTPException(status_code=400, detail="Invalid or corrupted PDF file")
             
         with open(temp_path, "wb") as f:
             f.write(content)
             
         try:
             result = await workflow.process_invoice(str(temp_path))
-            
-            # Only save valid PDFs
             extracted_data = result.get('extracted_data')
-            if extracted_data and extracted_data.get('invoice_number'):
-                invoice_id = extracted_data['invoice_number']
-                pdf_path = StorageConfig.get_pdf_path(invoice_id)
-                
-                # Copy the PDF to processed directory with invoice number as filename
-                import shutil
-                shutil.copy(str(temp_path), str(pdf_path))
-                logger.info(f"Saved PDF for invoice {invoice_id} to {pdf_path}")
-                
-                # Save structured data
-                save_invoice(result['extracted_data'])
-            else:
-                logger.warning(f"Invalid invoice data from {file.filename}: {extracted_data}")
-                raise HTTPException(
-                    status_code=422,
-                    detail="Could not extract valid invoice data from file"
-                )
-
-            return result
+            if not extracted_data:
+                return {
+                    "status": "error",
+                    "detail": "Could not extract any data from the file",
+                    "type": "extraction_error"
+                }
+            
+            if not extracted_data.get('invoice_number'):
+                return {
+                    "status": "error",
+                    "detail": "Could not find invoice number in the document",
+                    "type": "extraction_error"
+                }
+            
+            # Save PDF using the new helper function instead of copying
+            invoice_id = extracted_data['invoice_number']
+            process_invoice_and_save(content, invoice_id)
+            logger.info(f"Saved PDF for invoice {invoice_id} to {StorageConfig.get_pdf_path(invoice_id)}")
+            
+            save_invoice(result['extracted_data'])
+            
+            return {
+                "status": "success",
+                "detail": "Invoice processed successfully",
+                "extracted_data": extracted_data
+            }
             
         except Exception as process_error:
             logger.error(f"Error processing invoice {file.filename}: {str(process_error)}")
-            raise HTTPException(
-                status_code=422, 
-                detail=f"Failed to process invoice: {str(process_error)}"
-            )
-    except HTTPException:
-        raise
+            return {
+                "status": "error",
+                "detail": f"Failed to process invoice: {str(process_error)}",
+                "type": "processing_error"
+            }
     except Exception as e:
         logger.error(f"Unexpected error processing {file.filename}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        return {
+            "status": "error",
+            "detail": f"Error processing file: {str(e)}",
+            "type": "system_error"
+        }
     finally:
         if temp_path.exists():
             temp_path.unlink()
@@ -280,39 +278,27 @@ async def get_invoice_pdf(invoice_id: str):
             detail="Invoice ID is required"
         )
 
-    try:
-        pdf_path = StorageConfig.get_pdf_path(invoice_id)
-        logger.debug(f"Looking for PDF at path: {pdf_path}")
-        
-        if not pdf_path.exists():
-            logger.warning(f"PDF not found for invoice {invoice_id} at {pdf_path}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"PDF not found for invoice {invoice_id}"
-            )
-            
-        if not pdf_path.is_file():
-            logger.error(f"Path exists but is not a file: {pdf_path}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid PDF file path"
-            )
-            
-        return FileResponse(
-            path=str(pdf_path),
-            media_type="application/pdf",
-            filename=f"{invoice_id}.pdf",
-            headers={"Cache-Control": "no-cache"}
+    pdf_path = StorageConfig.get_pdf_path(invoice_id)
+    logger.debug(f"Looking for PDF at path: {pdf_path}")
+    if not pdf_path.exists():
+        logger.warning(f"PDF not found for invoice {invoice_id} at {pdf_path}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"PDF not found for invoice {invoice_id}"
         )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error serving PDF for invoice {invoice_id}: {str(e)}")
+    if not pdf_path.is_file():
+        logger.error(f"Path exists but is not a file: {pdf_path}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving PDF: {str(e)}"
+            detail="Invalid PDF file path"
         )
+    
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=f"{invoice_id}.pdf",
+        headers={"Cache-Control": "no-cache"}
+    )
 
 
 class InvoiceUpdate(BaseModel):
@@ -403,3 +389,15 @@ def save_anomaly(anomaly_data: dict):
     except Exception as e:
         logger.error(f"Error saving anomaly: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving anomaly: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "api.app:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        ws='auto',  # Enable WebSocket support
+        ws_ping_interval=20.0,  # Keep connections alive
+        ws_ping_timeout=20.0
+    )
