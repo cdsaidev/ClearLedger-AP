@@ -18,6 +18,7 @@ from agents.human_review_agent import HumanReviewAgent
 PROCESSED_DIR = Path("data/processed")
 TEMP_DIR = Path("data/temp")
 INVOICES_FILE = PROCESSED_DIR / "structured_invoices.json"
+ANOMALIES_FILE = PROCESSED_DIR / "anomalies.json"  # Add constant for anomalies file
 
 class InvoiceProcessingWorkflow:
     def __init__(self):
@@ -264,18 +265,31 @@ class InvoiceProcessingWorkflow:
         except Exception as e:
             logger.error(f"Failed to save invoice entry: {str(e)}")
 
-    def _save_anomaly_entry(self, anomaly_entry, output_file="data/anomalies.json"):
+    def _save_anomaly_entry(self, anomaly_entry):
+        """Save anomaly entry to data/processed/anomalies.json"""
         try:
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            PROCESSED_DIR.mkdir(exist_ok=True)
             try:
-                with open(output_file, "r") as f:
+                with open(ANOMALIES_FILE, "r") as f:
                     all_anomalies = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 all_anomalies = []
-            all_anomalies.append(anomaly_entry)
-            with open(output_file, "w") as f:
+
+            # Check for duplicates based on file_name or invoice_number
+            is_duplicate = False
+            for idx, anomaly in enumerate(all_anomalies):
+                if (anomaly.get('file_name') == anomaly_entry.get('file_name') or 
+                    anomaly.get('invoice_number') == anomaly_entry.get('invoice_number')):
+                    all_anomalies[idx] = anomaly_entry
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                all_anomalies.append(anomaly_entry)
+
+            with open(ANOMALIES_FILE, "w") as f:
                 json.dump(all_anomalies, f, indent=4)
-            logger.info(f"Saved anomaly entry to {output_file}")
+            logger.info(f"Saved anomaly entry to {ANOMALIES_FILE}")
         except Exception as e:
             logger.error(f"Failed to save anomaly entry: {str(e)}")
 
