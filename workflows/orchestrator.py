@@ -67,6 +67,10 @@ class InvoiceProcessingWorkflow:
             extracted_data = await self._retry_with_backoff(lambda: self.extraction_agent.run(document_path))
             extraction_time = monitoring.stop_timer("extraction")
             logger.info(f"Extraction completed: {extracted_data}")
+            
+            # Determine review status based on confidence
+            review_status = "needs_review" if extracted_data.confidence < 0.90 else "complete"
+            
             extracted_dict = {
                 "vendor_name": extracted_data.vendor_name,
                 "invoice_number": extracted_data.invoice_number,
@@ -76,7 +80,8 @@ class InvoiceProcessingWorkflow:
                 "po_number": extracted_data.po_number,
                 "tax_amount": extracted_data.tax_amount,
                 "currency": extracted_data.currency,
-                "validation_status": "pending"  # Initialize with pending
+                "validation_status": "pending",
+                "review_status": review_status  # Add review status
             }
         except Exception as e:
             logger.error(f"Extraction failed after retries: {str(e)}")
@@ -100,40 +105,41 @@ class InvoiceProcessingWorkflow:
             validation_time = monitoring.stop_timer("validation")
             logger.info(f"Validation completed: {validation_result}")
             
-            # Always update validation status in extracted_dict
+            # Update validation status in extracted_dict
             extracted_dict["validation_status"] = validation_result.status
             
+            # Update review status if validation failed
             if validation_result.status != "valid":
-                logger.warning(f"Invoice validation failed: {validation_result}")
-                # Mark as anomaly if non-invoice (e.g., missing vendor_name)
                 extracted_dict["review_status"] = "needs_review"
-                extracted_dict["confidence"] = 0.1
-                extracted_dict["file_name"] = os.path.basename(document_path)
-                extracted_dict["reason"] = "Non-invoice document detected"
-                invoice_entry = {
-                    **extracted_dict,
-                    "validation_errors": validation_result.errors,
-                    "matching_status": "skipped",
-                    "review_status": "needs_review",
-                    "extraction_time": extraction_time,
-                    "validation_time": validation_time,
-                    "matching_time": 0,
-                    "review_time": 0,
-                    "total_time": extraction_time + validation_time
-                }
-                self._save_anomaly_entry(invoice_entry)
-                return {
-                    "anomaly": True,
-                    "extracted_data": extracted_dict,
-                    "validation_result": validation_result.model_dump(),
-                    "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0},
-                    "review_result": {"status": "skipped", "invoice_data": extracted_dict},
-                    "extraction_time": extraction_time,
-                    "validation_time": validation_time,
-                    "matching_time": 0,
-                    "review_time": 0,
-                    "total_time": extraction_time + validation_time
-                }
+                logger.warning(f"Invoice validation failed: {validation_result}")
+                # Mark as anomaly if non-invoice
+                if "vendor_name" not in extracted_dict or not extracted_dict["vendor_name"]:
+                    extracted_dict["confidence"] = 0.1
+                    extracted_dict["file_name"] = os.path.basename(document_path)
+                    extracted_dict["reason"] = "Non-invoice document detected"
+                    invoice_entry = {
+                        **extracted_dict,
+                        "validation_errors": validation_result.errors,
+                        "matching_status": "skipped",
+                        "extraction_time": extraction_time,
+                        "validation_time": validation_time,
+                        "matching_time": 0,
+                        "review_time": 0,
+                        "total_time": extraction_time + validation_time
+                    }
+                    self._save_anomaly_entry(invoice_entry)
+                    return {
+                        "anomaly": True,
+                        "extracted_data": extracted_dict,
+                        "validation_result": validation_result.model_dump(),
+                        "matching_result": {"status": "skipped", "po_number": None, "match_confidence": 0.0},
+                        "review_result": {"status": "skipped", "invoice_data": extracted_dict},
+                        "extraction_time": extraction_time,
+                        "validation_time": validation_time,
+                        "matching_time": 0,
+                        "review_time": 0,
+                        "total_time": extraction_time + validation_time
+                    }
         except Exception as e:
             logger.error(f"Validation failed after retries: {str(e)}")
             validation_time = monitoring.stop_timer("validation")
