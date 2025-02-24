@@ -386,26 +386,33 @@ async def get_invoices():
         logger.error(f"Error reading invoices: {str(e)}")
         return []
 
+def load_json_file(filepath: Path) -> list:
+    try:
+        if filepath.exists():
+            with open(filepath, 'r') as f:
+                return json.load(f)
+        logger.debug(f"File not found: {filepath}")
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing {filepath}: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error reading {filepath}: {e}")
+    return []
+
 @app.get("/api/invoice_pdf/{invoice_id}")
 async def get_invoice_pdf(invoice_id: str):
+    """Get PDF for an invoice, searching in both processed and raw directories."""
     if not invoice_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invoice ID is required"
         )
 
-    def load_json_file(filepath: Path) -> list:
-        try:
-            if filepath.exists():
-                with open(filepath, 'r') as f:
-                    return json.load(f)
-        except json.JSONDecodeError as e:
-            logger.error(f"Error reading {filepath}: {e}")
-        return []
+    logger.debug(f"Looking for PDF for invoice_id: {invoice_id}")
 
     # First, check processed directory
     processed_pdf = StorageConfig.PROCESSED_DIR / f"{invoice_id}.pdf"
     if processed_pdf.exists():
+        logger.debug(f"Found PDF in processed directory: {processed_pdf}")
         return FileResponse(
             path=str(processed_pdf),
             media_type="application/pdf",
@@ -413,7 +420,7 @@ async def get_invoice_pdf(invoice_id: str):
             headers={"Cache-Control": "no-cache"}
         )
 
-    # If not in processed, try to find original filename from structured data
+    # If not in processed, look up original filename from structured data
     original_filename = None
 
     # Check structured_invoices.json
@@ -421,6 +428,7 @@ async def get_invoice_pdf(invoice_id: str):
     for invoice in invoices:
         if invoice.get('invoice_number') == invoice_id:
             original_filename = invoice.get('file_name')
+            logger.debug(f"Found original filename in invoices: {original_filename}")
             break
 
     # If not found in invoices, check anomalies.json
@@ -430,33 +438,45 @@ async def get_invoice_pdf(invoice_id: str):
             if (anomaly.get('invoice_number') == invoice_id or 
                 anomaly.get('file_name', '').startswith(invoice_id)):
                 original_filename = anomaly.get('file_name')
+                logger.debug(f"Found original filename in anomalies: {original_filename}")
                 break
 
     # If we found the original filename, check raw directory
     if original_filename:
+        # Try exact filename
         raw_pdf = StorageConfig.RAW_DIR / original_filename
         if raw_pdf.exists():
+            logger.debug(f"Found PDF in raw directory: {raw_pdf}")
             return FileResponse(
                 path=str(raw_pdf),
                 media_type="application/pdf",
                 filename=original_filename,
                 headers={"Cache-Control": "no-cache"}
             )
+        
+        # Try with .pdf extension if it's missing
+        if not original_filename.lower().endswith('.pdf'):
+            raw_pdf = StorageConfig.RAW_DIR / f"{original_filename}.pdf"
+            if raw_pdf.exists():
+                logger.debug(f"Found PDF in raw directory (with .pdf): {raw_pdf}")
+                return FileResponse(
+                    path=str(raw_pdf),
+                    media_type="application/pdf",
+                    filename=f"{original_filename}.pdf",
+                    headers={"Cache-Control": "no-cache"}
+                )
 
-    # As a last resort, try direct lookup in raw directory
-    fallback_pdf = StorageConfig.RAW_DIR / f"{invoice_id}.pdf"
-    if fallback_pdf.exists():
-        return FileResponse(
-            path=str(fallback_pdf),
-            media_type="application/pdf",
-            filename=f"{invoice_id}.pdf",
-            headers={"Cache-Control": "no-cache"}
-        )
+    # Log the failure paths we tried
+    logger.warning(
+        f"PDF not found for invoice {invoice_id}. "
+        f"Tried: processed={processed_pdf}, "
+        f"raw={original_filename if original_filename else 'no_filename_found'}"
+    )
 
-    # If we got here, the PDF wasn't found
-    return JSONResponse(
+    # Return 404 if PDF wasn't found
+    raise HTTPException(
         status_code=404,
-        content={"error": "PDF not found for this invoice"}
+        detail="PDF not found for this invoice"
     )
 
 class InvoiceUpdate(BaseModel):
