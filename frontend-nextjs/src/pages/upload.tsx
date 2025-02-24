@@ -38,35 +38,52 @@ export default function UploadPage() {
     lastError: null
   });
   const progressBarRef = useRef<HTMLDivElement>(null);
+  const wsTimeoutRef = useRef<NodeJS.Timeout>();
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_DELAY = 2000;
+  const UPDATE_TIMEOUT = 30000;
 
   useEffect(() => {
     if (!isProcessingAll) return;
 
     let ws: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout;
-    const MAX_RECONNECT_ATTEMPTS = 3;
-    const INITIAL_RETRY_DELAY = 1000;
 
     const connect = () => {
       if (wsState.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-        toast.error('Failed to connect to server after multiple attempts');
+        toast.error('Connection lost after multiple attempts. Please refresh the page.');
+        setIsProcessingAll(false);
         return;
       }
 
       ws = new WebSocket('ws://localhost:8000/ws/process_progress');
 
+      // Set update timeout
+      wsTimeoutRef.current = setTimeout(() => {
+        toast.error('No update received for 30 seconds. Connection may be lost.');
+        ws?.close();
+      }, UPDATE_TIMEOUT);
+
       ws.onopen = () => {
         setWsState(prev => ({
           ...prev,
           connected: true,
-          lastError: null,
-          reconnectAttempt: 0
+          lastError: null
         }));
         toast.success('Connected to processing server');
       };
 
       ws.onmessage = (event) => {
         try {
+          // Reset timeout on each message
+          if (wsTimeoutRef.current) {
+            clearTimeout(wsTimeoutRef.current);
+          }
+          wsTimeoutRef.current = setTimeout(() => {
+            toast.error('No update received for 30 seconds. Connection may be lost.');
+            ws?.close();
+          }, UPDATE_TIMEOUT);
+
           const data = JSON.parse(event.data);
           switch (data.type) {
             case 'progress':
@@ -82,6 +99,9 @@ export default function UploadPage() {
               toast.error(`Error processing ${data.file}: ${data.error}`);
               break;
             case 'complete':
+              if (wsTimeoutRef.current) {
+                clearTimeout(wsTimeoutRef.current);
+              }
               toast.success(data.message);
               setIsProcessingAll(false);
               break;
@@ -101,6 +121,10 @@ export default function UploadPage() {
       };
 
       ws.onclose = () => {
+        if (wsTimeoutRef.current) {
+          clearTimeout(wsTimeoutRef.current);
+        }
+
         setWsState(prev => {
           const newState = {
             ...prev,
@@ -109,9 +133,10 @@ export default function UploadPage() {
           };
 
           if (newState.reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
-            const delay = INITIAL_RETRY_DELAY * Math.pow(2, newState.reconnectAttempt);
-            reconnectTimeout = setTimeout(connect, delay);
-            toast.error(`Connection lost. Retrying in ${delay / 1000} seconds...`);
+            reconnectTimeout = setTimeout(() => {
+              connect();
+            }, RECONNECT_DELAY);
+            toast.error(`Connection lost. Retrying in ${RECONNECT_DELAY / 1000} seconds... (Attempt ${newState.reconnectAttempt + 1}/${MAX_RECONNECT_ATTEMPTS})`);
           }
 
           return newState;
@@ -122,6 +147,9 @@ export default function UploadPage() {
     connect();
 
     return () => {
+      if (wsTimeoutRef.current) {
+        clearTimeout(wsTimeoutRef.current);
+      }
       if (ws) {
         ws.close();
       }
