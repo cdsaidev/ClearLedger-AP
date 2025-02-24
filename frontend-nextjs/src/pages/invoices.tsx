@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getInvoices } from "../../lib/api"; // Updated import path
+import { getInvoices } from "../../lib/api";
 import { toast } from 'react-hot-toast';
-
-// Interface for type safety
-interface Invoice {
-  invoice_number: string;
-  vendor_name: string;
-  total_amount: number;
-  confidence: number;
-  validation_status: string;
-  invoice_date: string;
-}
+import { Invoice } from "../types";  // Updated import from types.ts
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -22,7 +13,7 @@ export default function InvoicesPage() {
     setError(null);
     try {
       const data = await getInvoices();
-      setInvoices(data);
+      setInvoices(data as Invoice[]);
     } catch (err) {
       setError('Failed to load invoices. Please try again.');
       toast.error('Failed to load invoices: ' + (err instanceof Error ? err.message : ''));
