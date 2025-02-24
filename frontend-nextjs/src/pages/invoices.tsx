@@ -1,68 +1,92 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getInvoices } from "../../lib/api";
 import { toast } from 'react-hot-toast';
-import { Invoice } from "../types";  // Updated import from types.ts
+import { Invoice } from "../types";
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000;
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const retryCount = useRef(0);
+  const isMounted = useRef(true);
+  const fetchInvoicesRef = useRef<(isRetry?: boolean) => Promise<void>>();
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async (isRetry = false) => {
+    if (loading && !isRetry) return; // Prevent concurrent fetches
+    
     setLoading(true);
-    setError(null);
+    if (!isRetry) {
+      setError(null);
+      retryCount.current = 0;
+    }
+
     try {
       const data = await getInvoices();
+      if (!isMounted.current) return;
+
       if (Array.isArray(data)) {
         // Sort invoices by date in descending order
         const sortedInvoices = [...data].sort((a: Invoice, b: Invoice) => {
           return new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime();
         });
         setInvoices(sortedInvoices);
+        retryCount.current = 0;
       } else {
         throw new Error('Invalid response format');
       }
     } catch (err) {
-      setError('Failed to load invoices. Please try again.');
-      toast.error('Failed to load invoices: ' + (err instanceof Error ? err.message : ''));
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!isMounted.current) return;
 
-  // Fetch invoices on mount and every 5 seconds when loading is true
-  useEffect(() => {
-    fetchInvoices();
-    
-    // Set up polling when loading is true
-    let pollInterval: NodeJS.Timeout;
-    if (loading) {
-      pollInterval = setInterval(fetchInvoices, 5000);
-    }
-
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
+      retryCount.current++;
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      
+      if (retryCount.current < MAX_RETRIES) {
+        toast.error(`Failed to load invoices (attempt ${retryCount.current}/${MAX_RETRIES}). Retrying...`);
+        setTimeout(() => fetchInvoices(true), RETRY_DELAY);
+        return;
       }
+      
+      setError('Failed to load invoices. Please try again later.');
+      toast.error(`Failed to load invoices after ${MAX_RETRIES} attempts: ${errorMessage}`);
+    } finally {
+      if (isMounted.current && (!error || retryCount.current >= MAX_RETRIES)) {
+        setLoading(false);
+      }
+    }
+  }, [loading, error]);
+
+  // Store the fetchInvoices function in a ref
+  fetchInvoicesRef.current = fetchInvoices;
+
+  useEffect(() => {
+    isMounted.current = true;
+    fetchInvoicesRef.current?.();
+    return () => {
+      isMounted.current = false;
     };
-  }, [loading]);
+  }, []); // Safe to have empty deps array now
 
   return (
     <div className="max-w-7xl mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Invoices</h1>
         <button 
-          onClick={fetchInvoices} 
+          onClick={() => fetchInvoicesRef.current?.()}
           disabled={loading}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
         >
-          {loading ? 'Refreshing...' : 'Refresh'}
+          {loading ? `Refreshing${retryCount.current > 0 ? ` (Attempt ${retryCount.current}/${MAX_RETRIES})` : '...'}` : 'Refresh'}
         </button>
       </div>
       
       {error && <p className="text-red-500 mb-4">{error}</p>}
       
-      {loading && <p className="text-gray-500 text-center py-4">Loading invoices...</p>}
+      {loading && <p className="text-gray-500 text-center py-4">
+        Loading invoices{retryCount.current > 0 ? ` (Attempt ${retryCount.current}/${MAX_RETRIES})` : '...'}
+      </p>}
 
       {!loading && invoices.length === 0 && (
         <p className="text-gray-500 text-center py-8">No invoices found.</p>
