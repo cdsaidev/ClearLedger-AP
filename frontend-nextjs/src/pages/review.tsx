@@ -38,7 +38,7 @@ export default function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  // New function to handle viewing PDF
+  // Updated function to handle viewing PDF
   const handleViewPdf = async (invoiceId: string) => {
     let objectUrl: string | undefined;
     
