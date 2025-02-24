@@ -127,12 +127,17 @@ This repository houses the Next.js frontend version of the Clear Ledger AP, buil
   - Stabilized backend operations
   - Resolved frontend compatibility issues
   - Fixed critical bugs in processing pipeline
+  - Resolved batch processing stalls
+  - Restored PDF viewing functionality
+  - Fixed infinite loading issues
   
 - 🛠️ **Technical Implementation**
   1. **Backend Stabilization**
      - Fixed `uvicorn.run()` configuration
      - Optimized WebSocket connections
      - Enhanced error logging
+     - Reduced WebSocket broadcast frequency
+     - Improved PDF serving logic
 
   2. **Node.js Environment**
      - Updated to Node.js 20
@@ -144,12 +149,20 @@ This repository houses the Next.js frontend version of the Clear Ledger AP, buil
      - Enhanced review page logic
      - Fixed invoice processing feedback
      - Added robust error handling
+     - Limited fetchInvoices retries
+     - Improved PDF viewing error handling
 
   4. **Configuration Updates**
      - Migrated from `next.config.ts` to `next.config.js`
      - Updated package dependencies
      - Optimized build configuration
 
+  5. **Critical System Improvements**
+     - Fixed batch processing stalls at 19/35 or 34/35
+     - Resolved PDF viewing 404 errors
+     - Fixed 'Refreshing...' state on invoices page
+     - Implemented graceful error handling
+     - Enhanced WebSocket stability
 
 - **More Technical Fixes**:
   - Merged `api/human_review_api.py` into `api/review_api.py`, consolidating review functionality into a single API module running on port 8000, eliminating redundancy.
@@ -372,6 +385,8 @@ clear_ledger_nextjs/
   npm run dev
   ```
 
+> **Important Note**: If batch processing stalls, ensure a stable server connection and consider increasing WebSocket timeout settings (`ws_ping_interval`, `ws_ping_timeout`) in `api/app.py`.
+
 ### System Access
 - Frontend: http://localhost:3000
 - API: http://localhost:8000
@@ -446,12 +461,22 @@ clear_ledger_nextjs/
    - Solution: Adjust backend confidence threshold logic
    - Location: Check review flagging criteria in `api/app.py`
 
-4. **Anomaly Detection**
-   - Issue: Invalid PDFs not appearing in anomalies
-   - Solution: Verify `_save_anomaly_entry` function
-   - Check: Frontend `fetchAnomalies` implementation
+4. **PDF Viewing Failures**
+   - Issue: 'View PDF' button returns 404 errors
+   - Solution: Verify `structured_invoices.json` and `anomalies.json` contain correct `file_name` entries
+   - Check: Ensure PDFs exist in `data/raw/invoices/` or `data/processed/`
 
-5. **WebSocket Connection**
+5. **Infinite Loading States**
+   - Issue: Invoices page shows 'Refreshing...' indefinitely
+   - Solution: Check `/api/invoices` endpoint for timeouts
+   - Location: Verify `fetchInvoices` retry limits and delays
+
+6. **Resource Errors**
+   - Issue: `net::ERR_INSUFFICIENT_RESOURCES` on invoices page
+   - Solution: Ensure `fetchInvoices` implements proper retry limits and delays
+   - Check: Frontend request handling and error boundaries
+
+7. **WebSocket Connection**
    - Issue: Processing status updates not showing
    - Solution: Ensure WebSocket connection is properly initialized
    - Location: Check frontend WebSocket setup and error handling
