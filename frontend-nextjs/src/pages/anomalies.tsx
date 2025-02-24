@@ -22,7 +22,7 @@ export default function AnomaliesPage() {
     setError(null);
     try {
       const data = await getAnomalies();
-      setAnomalies(data);
+      setAnomalies(data as Anomaly[]);
     } catch (err) {
       setError('Failed to load anomalies');
       toast.error('Failed to load anomalies: ' + (err instanceof Error ? err.message : ''));
