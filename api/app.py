@@ -131,18 +131,81 @@ async def websocket_endpoint(websocket: WebSocket):
 async def broadcast_progress(message: dict):
     await manager.broadcast(message)
 
-# Update process_all_invoices to send more detailed progress updates
+# Update process_all_invoices to process all PDFs and send progress updates
 @app.post("/api/process_all_invoices")
 async def process_all_invoices():
-    import asyncio
-    # Simulate processing invoices and send progress updates via WebSocket
-    for i in range(1, 4):
-        await asyncio.sleep(1)  # Simulate work
+    pdf_dir = Path("data/raw/invoices")
+    try:
+        if not pdf_dir.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Invoice directory not found: {pdf_dir}"
+            )
+        
+        pdf_files = list(pdf_dir.glob("*.pdf"))
+        if not pdf_files:
+            return {
+                "status": "completed",
+                "message": "No PDF files found to process",
+                "processed": 0
+            }
+
+        workflow = InvoiceProcessingWorkflow()
+        total_files = len(pdf_files)
+        processed = 0
+        failed = 0
+
+        for i, pdf_path in enumerate(pdf_files, 1):
+            try:
+                # Send progress update via WebSocket
+                await manager.broadcast({
+                    "type": "progress",
+                    "current": i,
+                    "total": total_files,
+                    "failed": failed,
+                    "currentFile": pdf_path.name
+                })
+
+                # Process the invoice
+                result = await workflow.process_invoice(str(pdf_path))
+                if result.get("status") == "error":
+                    failed += 1
+                    logger.error(f"Failed to process {pdf_path.name}: {result.get('message')}")
+                else:
+                    processed += 1
+                    logger.info(f"Successfully processed {pdf_path.name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"Error processing {pdf_path.name}: {str(e)}")
+                await manager.broadcast({
+                    "type": "error",
+                    "file": pdf_path.name,
+                    "error": str(e)
+                })
+
+        # Send completion message
         await manager.broadcast({
-            "type": "progress",
-            "message": f"{i * 33}"
+            "type": "complete",
+            "message": f"Processed {processed} files, {failed} failed",
+            "current": total_files,
+            "total": total_files
         })
-    return {"message": "All invoices processed"}
+
+        return {
+            "status": "completed",
+            "message": f"Processed {processed} files, {failed} failed",
+            "processed": processed,
+            "failed": failed,
+            "total": total_files
+        }
+
+    except Exception as e:
+        logger.error(f"Error in batch processing: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Batch processing failed: {str(e)}"
+        }
 
 def save_invoice(invoice_data: dict):
     """Save invoice data to the structured_invoices.json file.
