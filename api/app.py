@@ -151,6 +151,10 @@ async def process_all_invoices():
                     "currentFile": pdf_path.name
                 })
 
+                # Log progress to file for debugging
+                with open("processing.log", "a") as log_file:
+                    log_file.write(f"Processed invoice {i}/{total_files}\n")
+
                 result = await workflow.process_invoice(str(temp_path), save_pdf=False)
                 if result.get("status") == "error":
                     failed += 1
@@ -387,27 +391,28 @@ async def get_invoice_pdf(invoice_id: str):
             detail="Invoice ID is required"
         )
 
-    pdf_path = StorageConfig.get_pdf_path(invoice_id)
-    logger.debug(f"Looking for PDF at path: {pdf_path}")
-    if not pdf_path.exists():
-        logger.warning(f"PDF not found for invoice {invoice_id} at {pdf_path}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"PDF not found for invoice {invoice_id}"
+    # Check processed directory first
+    processed_pdf = StorageConfig.PROCESSED_DIR / f"{invoice_id}.pdf"
+    # Check raw invoices directory if not in processed
+    raw_pdf = Path("data/raw/invoices") / f"{invoice_id}.pdf"
+
+    if processed_pdf.exists():
+        return FileResponse(
+            path=str(processed_pdf),
+            media_type="application/pdf",
+            filename=f"{invoice_id}.pdf",
+            headers={"Cache-Control": "no-cache"}
         )
-    if not pdf_path.is_file():
-        logger.error(f"Path exists but is not a file: {pdf_path}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid PDF file path"
+    elif raw_pdf.exists():
+        return FileResponse(
+            path=str(raw_pdf),
+            media_type="application/pdf",
+            filename=f"{invoice_id}.pdf",
+            headers={"Cache-Control": "no-cache"}
         )
-    
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=f"{invoice_id}.pdf",
-        headers={"Cache-Control": "no-cache"}
-    )
+    else:
+        # Return JSON 404 response with error message
+        return JSONResponse(status_code=404, content={"error": "PDF not found for this invoice"})
 
 class InvoiceUpdate(BaseModel):
     vendor_name: str
