@@ -18,7 +18,7 @@ from agents.human_review_agent import HumanReviewAgent
 PROCESSED_DIR = Path("data/processed")
 TEMP_DIR = Path("data/temp")
 INVOICES_FILE = PROCESSED_DIR / "structured_invoices.json"
-ANOMALIES_FILE = PROCESSED_DIR / "anomalies.json"  # Add constant for anomalies file
+ANOMALIES_FILE = PROCESSED_DIR / "anomalies.json"
 
 class InvoiceProcessingWorkflow:
     def __init__(self):
@@ -46,7 +46,7 @@ class InvoiceProcessingWorkflow:
                 logger.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying in {delay}s...")
                 await asyncio.sleep(delay)
 
-    async def process_invoice(self, document_path: str) -> dict:
+    async def process_invoice(self, document_path: str, save_pdf: bool = True) -> dict:
         logger.info(f"Starting invoice processing for: {document_path}")
         logger.debug(f"Processing pipeline initiated for document: {document_path}")
 
@@ -81,7 +81,7 @@ class InvoiceProcessingWorkflow:
                 "tax_amount": extracted_data.tax_amount,
                 "currency": extracted_data.currency,
                 "validation_status": "pending",
-                "review_status": review_status  # Add review status
+                "review_status": review_status
             }
         except Exception as e:
             logger.error(f"Extraction failed after retries: {str(e)}")
@@ -105,14 +105,11 @@ class InvoiceProcessingWorkflow:
             validation_time = monitoring.stop_timer("validation")
             logger.info(f"Validation completed: {validation_result}")
             
-            # Update validation status in extracted_dict
             extracted_dict["validation_status"] = validation_result.status
             
-            # Update review status if validation failed
             if validation_result.status != "valid":
                 extracted_dict["review_status"] = "needs_review"
                 logger.warning(f"Invoice validation failed: {validation_result}")
-                # Mark as anomaly if non-invoice
                 if "vendor_name" not in extracted_dict or not extracted_dict["vendor_name"]:
                     extracted_dict["confidence"] = 0.1
                     extracted_dict["file_name"] = os.path.basename(document_path)
@@ -228,8 +225,8 @@ class InvoiceProcessingWorkflow:
         }
         self._save_invoice_entry(invoice_entry)
 
-        # After successful extraction, save the PDF with the invoice number
-        if extracted_dict.get('invoice_number'):
+        # Save the PDF only if save_pdf is True
+        if save_pdf and extracted_dict.get('invoice_number'):
             pdf_path = PROCESSED_DIR / f"{extracted_dict['invoice_number']}.pdf"
             shutil.copy2(document_path, pdf_path)
             logger.info(f"Saved PDF for invoice {extracted_dict['invoice_number']} to {pdf_path}")
@@ -257,13 +254,11 @@ class InvoiceProcessingWorkflow:
                     all_invoices = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 all_invoices = []
-            # Check for existing invoice with same number and update it
             for idx, inv in enumerate(all_invoices):
                 if inv.get('invoice_number') == invoice_entry.get('invoice_number'):
                     all_invoices[idx] = invoice_entry
                     break
             else:
-                # No existing invoice found, append new one
                 all_invoices.append(invoice_entry)
             with open(INVOICES_FILE, "w") as f:
                 json.dump(all_invoices, f, indent=4)
@@ -272,7 +267,6 @@ class InvoiceProcessingWorkflow:
             logger.error(f"Failed to save invoice entry: {str(e)}")
 
     def _save_anomaly_entry(self, anomaly_entry):
-        """Save anomaly entry to data/processed/anomalies.json"""
         try:
             PROCESSED_DIR.mkdir(exist_ok=True)
             try:
@@ -280,8 +274,6 @@ class InvoiceProcessingWorkflow:
                     all_anomalies = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 all_anomalies = []
-
-            # Check for duplicates based on file_name or invoice_number
             is_duplicate = False
             for idx, anomaly in enumerate(all_anomalies):
                 if (anomaly.get('file_name') == anomaly_entry.get('file_name') or 
@@ -289,10 +281,8 @@ class InvoiceProcessingWorkflow:
                     all_anomalies[idx] = anomaly_entry
                     is_duplicate = True
                     break
-            
             if not is_duplicate:
                 all_anomalies.append(anomaly_entry)
-
             with open(ANOMALIES_FILE, "w") as f:
                 json.dump(all_anomalies, f, indent=4)
             logger.info(f"Saved anomaly entry to {ANOMALIES_FILE}")
