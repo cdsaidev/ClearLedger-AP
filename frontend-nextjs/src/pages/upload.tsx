@@ -4,7 +4,9 @@ import { toast } from 'react-hot-toast'; // Added import for toast notifications
 
 // Interface for type safety
 interface UploadResponse {
-  extracted_data: {
+  status: string;
+  detail?: string;
+  extracted_data?: {
     invoice_number: string;
     vendor_name: string;
     total_amount: number;
@@ -258,15 +260,23 @@ export default function UploadPage() {
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
       
-      {/* Single upload response display */}
+      {/* Conditional rendering of upload response */}
       {uploadResponse && (
-        <div className="bg-gray-100 p-4 rounded mt-4 space-y-2">
-          <p><span className="font-semibold">Vendor:</span> {uploadResponse.extracted_data.vendor_name}</p>
-          <p><span className="font-semibold">Invoice Number:</span> {uploadResponse.extracted_data.invoice_number}</p>
-          <p><span className="font-semibold">Date:</span> {uploadResponse.extracted_data.invoice_date}</p>
-          <p><span className="font-semibold">Total Amount:</span> £{uploadResponse.extracted_data.total_amount}</p>
-          <p><span className="font-semibold">Confidence:</span> {(uploadResponse.extracted_data.confidence * 100).toFixed(2)}%</p>
-          <p><span className="font-semibold">Status:</span> {uploadResponse.extracted_data.validation_status}</p>
+        <div className="bg-gray-100 p-4 rounded mt-4">
+          {uploadResponse.status === 'success' && uploadResponse.extracted_data ? (
+            <div className="space-y-2">
+              <p><span className="font-semibold">Vendor:</span> {uploadResponse.extracted_data.vendor_name}</p>
+              <p><span className="font-semibold">Invoice Number:</span> {uploadResponse.extracted_data.invoice_number}</p>
+              <p><span className="font-semibold">Date:</span> {uploadResponse.extracted_data.invoice_date}</p>
+              <p><span className="font-semibold">Total Amount:</span> £{uploadResponse.extracted_data.total_amount}</p>
+              <p><span className="font-semibold">Confidence:</span> {(uploadResponse.extracted_data.confidence * 100).toFixed(2)}%</p>
+              <p><span className="font-semibold">Status:</span> {uploadResponse.extracted_data.validation_status}</p>
+            </div>
+          ) : (
+            <div className="text-red-500">
+              {uploadResponse.detail || 'Upload failed. Please try again.'}
+            </div>
+          )}
         </div>
       )}
 
