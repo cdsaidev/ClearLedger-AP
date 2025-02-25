@@ -38,47 +38,36 @@ export default function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  // Updated function to handle viewing PDF
+  // Updated function to handle downloading PDF
   const handleViewPdf = async (invoiceId: string) => {
-    let objectUrl: string | undefined;
-    
     if (!invoiceId || invoiceId === 'undefined') {
       toast.error("No invoice ID available to view PDF.");
       return;
     }
     
+    console.log('Attempting to view PDF for invoice:', invoiceId);
+    let objectUrl: string | undefined;
+    
     try {
       const blob = await getInvoicePdf(invoiceId);
+      console.log('Received blob:', blob);
+      
       objectUrl = window.URL.createObjectURL(blob);
-      const newWindow = window.open(objectUrl, '_blank');
       
-      // If window failed to open, clean up immediately
-      if (!newWindow) {
-        toast.error('Failed to open PDF. Please check your popup blocker settings.');
-        if (objectUrl) window.URL.revokeObjectURL(objectUrl);
-        return;
-      }
-      
-      // Clean up the URL after the window loads or after a timeout
-      const cleanup = () => {
-        if (objectUrl) {
-          window.URL.revokeObjectURL(objectUrl);
-          objectUrl = undefined;
-        }
-      };
-      
-      setTimeout(cleanup, 1000);
+      const downloadLink = document.createElement('a');
+      downloadLink.href = objectUrl;
+      downloadLink.download = `${invoiceId}.pdf`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
       
     } catch (error) {
-      console.error('Error viewing PDF:', error);
-      if (error instanceof Error && error.message === 'PDF not found for this invoice') {
-        toast.error('PDF is not available for this invoice. It may have been moved or deleted.');
-      } else {
-        toast.error(`Failed to view PDF: ${error instanceof Error ? error.message : String(error)}`);
-      }
+      console.error('Error downloading PDF:', error);
+      toast.error(`Failed to fetch PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      // Ensure cleanup happens even if there's an error
-      if (objectUrl) window.URL.revokeObjectURL(objectUrl);
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
     }
   };
 
@@ -171,7 +160,10 @@ export default function ReviewPage() {
                   </p>
                   <p className="text-sm text-gray-600">Status: {invoice.validation_status || 'Unknown'}</p>
                   <button
-                    onClick={() => handleViewPdf(invoice.invoice_number)}
+                    onClick={() => {
+                      console.log('Button clicked for invoice:', invoice.invoice_number);
+                      handleViewPdf(invoice.invoice_number);
+                    }}
                     className="mt-2 text-sm text-blue-600 hover:underline"
                   >
                     View PDF
