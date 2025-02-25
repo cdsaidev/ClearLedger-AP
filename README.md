@@ -175,7 +175,7 @@ An intelligent invoice processing system leveraging LangChain's multi-agent work
 
 ```plaintext
 clear_ledger_nextjs/
-├── Dockerfile
+├── Backend/Dockerfile
 ├── main.py
 ├── package.json
 ├── package-lock.json
@@ -322,6 +322,47 @@ clear_ledger_nextjs/
                 +------+------+
 ```
 
+```mermaid
+flowchart TD
+    subgraph "Next.js Frontend [Port: 3000]"
+        A1[Upload Page<br>Single or Batch] --> A2[Real-Time Progress<br>via WebSockets]
+        A2 --> A3[Invoices Page<br>Detailed Table View]
+        A3 --> A4[Review Page<br>Edit & Preview PDFs]
+        A4 --> A5[Metrics Page<br>Analytics Dashboard]
+    end
+
+    subgraph "FastAPI Backend [Port: 8000]"
+        B1[API Endpoints<br>/upload, /invoices, /update] --> B2[WebSocket<br>/ws/process_progress]
+        B2 --> B3[Orchestrator<br>Coordinates Agents]
+    end
+
+    subgraph "Multi-Agent Workflow [LangChain]"
+        C1[Extraction Agent<br>gpt-4o-mini, pdfplumber] --> C2[Validation Agent<br>Pydantic, Anomalies]
+        C2 --> C3[PO Matching Agent<br>Fuzzy Matching, FAISS]
+        C3 --> C4{Human Review<br>Confidence < 0.9?}
+        C4 -->|Yes| C5[Human Review Agent<br>Manual Correction]
+        C4 -->|No| C6[Processed Output]
+        C5 --> C6
+    end
+
+    subgraph "Data Processing & Storage"
+        D1[RAG Helper<br>Error Classification] --> C3
+        D2[Raw PDFs<br>data/raw/invoices/] --> C1
+        C6 --> D3[Structured JSON<br>structured_invoices.json]
+        C3 --> D4[Vendor Data<br>vendor_data.csv]
+        C6 --> D5[Logs & Metrics<br>monitoring.py]
+    end
+
+    %% Connections
+    A1 --> B1
+    A2 --> B2
+    A3 --> B1
+    A4 --> B1
+    A5 --> B1
+    B3 --> C1
+    D1 --> C5
+    D5 --> A5
+```
 ## Setup Guide
 
 ### Prerequisites
