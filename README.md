@@ -474,57 +474,34 @@ Pre-built images are available at:
 ## Future Enhancement: Database-Backed Invoice Management
 
 ### Context
-The current system uses a file-based approach (`data/raw/invoices/`) for simplicity within the 10-day challenge. However, with an expected volume of 5,000 monthly invoices, a scalable solution was carefully considered during the architectural design phase.
+The current file-based system (`data/raw/invoices/`) suits the 10-day challenge’s scope. For 5,000 monthly invoices, a database was planned to enhance scalability and real-time features.
 
 ### Proposed Solution
-
-#### Database & Storage Architecture
-- **Database**: PostgreSQL (SQL) or MongoDB (NoSQL)
-  - Store invoice metadata (invoice number, vendor, date, total, status)
-  - Maintain file references and processing history
-  - Enable efficient querying and reporting
-- **Object Storage**: AWS S3 or Local File Server
-  - Secure PDF document storage
-  - Scalable capacity for growing document volumes
-  - Built-in redundancy and backup capabilities
+- **Database**: PostgreSQL for invoice metadata (e.g., invoice_number, total_amount).
+- **Storage**: AWS S3 for PDF storage with versioning.
 
 #### Implementation Steps
-1. **Database Setup** (1-2 days)
-   - Configure PostgreSQL with optimized schema
-   - Implement invoice metadata tables
-   - Set up indexing for frequent queries
+1. **Database Setup** (1-2 days): Initialize PostgreSQL with indexed tables.
+2. **Storage Integration** (1 day): Configure S3, update `main.py` to store PDF URLs.
+3. **API Updates** (1-2 days): Modify FastAPI endpoints (`review_api.py`) to query the database.
+4. **Frontend Adjustments** (1 day): Enhance `invoices.tsx` and `metrics.tsx` for real-time DB queries.
 
-2. **Object Storage Integration** (1 day)
-   - Configure S3 bucket or local storage
-   - Implement secure file upload/download
-   - Set up access controls and monitoring
+### Benefits
+- Scalability for high invoice volumes
+- Fast, real-time data retrieval for Next.js UI
+- Secure, reliable storage
 
-3. **API Updates** (1-2 days)
-   - Modify FastAPI endpoints for database operations
-   - Implement storage URL generation
-   - Update PDF serving mechanism
+### Why Not Implemented
+The 10-day timeline prioritized core functionality. The system’s modularity (e.g., `InvoiceProcessingWorkflow` in `orchestrator.py`) supports future database adoption.
 
-4. **Frontend Adjustments** (1 day)
-   - Update Next.js components for database queries
-   - Implement PDF viewing via storage URLs
-   - Enhance search and filter capabilities
+### Post-Submission Roadmap
+Over 3 weeks post-delivery:
+- **Week 1**: Database setup and data migration.
+- **Week 2**: S3 integration and API updates.
+- **Week 3**: Frontend enhancements for live updates.
 
-#### Benefits
-- **Scalability**: Efficiently handle thousands of monthly invoices
-- **Performance**: Fast querying and retrieval of invoice data
-- **Security**: Enhanced access control and audit trails
-- **Reliability**: Automated backups and data redundancy
-- **Reporting**: Advanced analytics and custom report generation
-
-#### Why Not Implemented
-Time constraints prioritized delivering a functional system within the 10-day challenge. However, the current modular design allows for future integration of these enhancements without major refactoring.
-
-#### Implementation Roadmap
-Post-delivery phased approach:
-1. Phase 1: Database migration for metadata (Week 1-2)
-2. Phase 2: Object storage integration (Week 2-3)
-3. Phase 3: Frontend updates and testing (Week 3-4)
-4. Phase 4: Performance optimization and monitoring (Week 4)
+### Consideration
+Real-time WebSocket updates might strain DB connections; connection pooling could optimize performance.
 
 ---
 
