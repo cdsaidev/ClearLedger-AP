@@ -6,26 +6,17 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14.2.24-black.svg)](https://nextjs.org/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT4-412991.svg)](https://openai.com/)
 
-## Overview
+## 🎯 Overview
 
-An intelligent invoice processing system leveraging LangChain's multi-agent workflow
+A sophisticated invoice processing system that leverages LangChain's multi-agent workflow to automate extraction, validation, and purchase order (PO) matching. Built as a technical challenge for Brim's Agentic AI Engineer position, this solution aims to reduce manual processing time by over 75% while maintaining high accuracy through intelligent error handling and human-in-the-loop review processes.
 
-[Overview](#overview) •
-[Features](#key-features) •
-[Development Journey](#development-journey) •
-[Architecture](#architecture) •
-[Setup Guide](#setup-guide) •
-[Usage Guide](#core-workflows) •
-[Progress](#project-progress)
+## 📋 Key Features
 
-## Key Features
-
-- **Automated Processing Pipeline**
-  - Processes PDFs from configurable directories:
+- **Intelligent Processing Pipeline**
+  - Processes PDFs from:
     - `data/raw/invoices/` (35 invoices)
-    - `data/raw/test_samples/` (3 PDFs)
   - Multi-agent system for extraction, validation, and matching
-  - RAG-based error handling with FAISS
+  - RAG-based error handling with FAISS `data/raw/test_samples/` -> (5 faulty PDFs examples to reduce the need for human review)
   - Asynchronous processing with robust error management
 
 - **Modern Frontend Interface**
@@ -179,6 +170,7 @@ clear_ledger_nextjs/
 ├── main.py
 ├── package.json
 ├── package-lock.json
+├── docker-compose.yml
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -190,21 +182,18 @@ clear_ledger_nextjs/
 │   ├── human_review_agent.py
 │   ├── matching_agent.py
 │   ├── validator_agent.py
-│   └── __pycache__/
-│       └── … (compiled files)
+│       
 ├── api/
 │   ├── __init__.py
 │   ├── app.py
 │   ├── review_api.py  
-│   └── __pycache__/
-│       └── … (compiled files)
+│       
 ├── config/
 │   ├── __init__.py
 │   ├── logging_config.py
 │   ├── monitoring.py
 │   ├── settings.py
-│   └── __pycache__/
-│       └── … (compiled files)
+│ 
 ├── data/
 │   ├── processed/
 │   │   └── anomalies.json
@@ -225,10 +214,10 @@ clear_ledger_nextjs/
 │   ├── ocr_helper.py
 │   ├── po_matcher.py
 │   ├── rag_helper.py
-│   └── __pycache__/
-│       └── … (compiled files)
+│       
 ├── frontend-nextjs/
 │   ├── eslint.config.mjs
+│   ├── Dockerfile
 │   ├── next-env.d.ts
 │   ├── next.config.ts
 │   ├── package.json
@@ -254,16 +243,14 @@ clear_ledger_nextjs/
 │   ├── __init__.py
 │   ├── invoice.py
 │   ├── validation_schema.py
-│   └── __pycache__/
-│       └── … (compiled files)
+│       
 └── workflows/
     ├── __init__.py
-    ├── orchestrator.py  <!-- sole workflow manager -->
-    └── __pycache__/
-        └── … (compiled files)
+    ├── orchestrator.py  
+      
 ```
 
-### Architecture Diagram
+### Architecture Diagram (both project variants; different reps)
 
 ```plaintext
 +-------------------+       +-------------------+
@@ -363,6 +350,7 @@ flowchart TD
     D1 --> C5
     D5 --> A5
 ```
+
 ## Setup Guide
 
 ### Prerequisites
@@ -404,40 +392,41 @@ flowchart TD
    docker pull chris9753/clear_ledger_nextjs_backend:latest
    docker pull chris9753/clear_ledger_nextjs_frontend:latest
    ```
-   ### Using Pre-built Images
 
-   1. **Create a docker-compose.yml**:
-      ```yaml
-      version: '3.8'
-      services:
-        backend:
-          image: chris9753/clear_ledger_nextjs_backend:latest
-          ports:
-            - "8000:8000"
-          environment:
-            - OPENAI_API_KEY=${OPENAI_API_KEY}
-          volumes:
-            - ./data:/app/data
+### Using Pre-built Images
 
-        frontend:
-          image: chris9753/clear_ledger_nextjs_frontend:latest
-          ports:
-            - "3000:3000"
-          depends_on:
-            - backend
-      ```
+1. **Create a docker-compose.yml**:
+   ```yaml
+   version: '3.8'
+   services:
+     backend:
+       image: chris9753/clear_ledger_nextjs_backend:latest
+       ports:
+         - "8000:8000"
+       environment:
+         - OPENAI_API_KEY=${OPENAI_API_KEY}
+       volumes:
+         - ./data:/app/data
 
-   ### CI/CD Pipeline
+     frontend:
+       image: chris9753/clear_ledger_nextjs_frontend:latest
+       ports:
+         - "3000:3000"
+       depends_on:
+         - backend
+   ```
 
-   This project uses GitHub Actions to automatically build and push Docker images to Docker Hub whenever changes are pushed to the repository.
+### CI/CD Pipeline
 
-   Pre-built images are available at:
-   - Backend: `chris9753/clear_ledger_nextjs_backend:latest`
-   - Frontend: `chris9753/clear_ledger_nextjs_frontend:latest`
+This project uses GitHub Actions to automatically build and push Docker images to Docker Hub whenever changes are pushed to the repository.
 
-   ### Core Workflows
+Pre-built images are available at:
+- Backend: `chris9753/clear_ledger_nextjs_backend:latest`
+- Frontend: `chris9753/clear_ledger_nextjs_frontend:latest`
 
-   1. **Process Invoices**
+### Core Workflows
+
+1. **Process Invoices**
    - Upload at `/upload`
    - View at `/invoices`
    - Review at `/review`
@@ -469,7 +458,7 @@ flowchart TD
 
 ## Project Progress
 
-### Completed (Days 1-6)
+### Completed (Days 1-7)
 
 - ✅ Multi-agent system implementation
 - ✅ Frontend migration (Streamlit → Next.js)
@@ -477,9 +466,9 @@ flowchart TD
 - ✅ RAG-based error handling
 - ✅ Critical system improvements
 - ✅ Project Refinement and Optimization
+- ✅ Documentation & Testing
 
-### Remaining Tasks (Days 7-10)
-- Day 7: Documentation & Testing
+### Remaining Tasks (Days 8-10)
 - Day 8: Performance Optimization & Submission
 
 ## Future Enhancement: Database-Backed Invoice Management
@@ -536,45 +525,6 @@ Post-delivery phased approach:
 2. Phase 2: Object storage integration (Week 2-3)
 3. Phase 3: Frontend updates and testing (Week 3-4)
 4. Phase 4: Performance optimization and monitoring (Week 4)
-
-## Troubleshooting Guide
-
-### Common Issues and Solutions
-
-1. **Invalid PDF Processing**
-   - Issue: `TypeError: Cannot read properties of undefined (reading 'vendor_name')`
-   - Solution: Check if `extracted_data` exists before accessing properties
-   - Location: Review error handling in frontend PDF processing components
-
-2. **Invoice Processing List**
-   - Issue: 'Process All Invoices' not showing complete list
-   - Solution: Verify `/api/process_all_invoices` endpoint response
-   - Check: Frontend `fetchInvoices` implementation
-
-3. **Review Page Logic**
-   - Issue: Valid invoices appearing in review tab
-   - Solution: Adjust backend confidence threshold logic
-   - Location: Check review flagging criteria in `api/app.py`
-
-4. **PDF Viewing Failures**
-   - Issue: 'View PDF' button returns 404 errors
-   - Solution: Verify `structured_invoices.json` and `anomalies.json` contain correct `file_name` entries
-   - Check: Ensure PDFs exist in `data/raw/invoices/` or `data/processed/`
-
-5. **Infinite Loading States**
-   - Issue: Invoices page shows 'Refreshing...' indefinitely
-   - Solution: Check `/api/invoices` endpoint for timeouts
-   - Location: Verify `fetchInvoices` retry limits and delays
-
-6. **Resource Errors**
-   - Issue: `net::ERR_INSUFFICIENT_RESOURCES` on invoices page
-   - Solution: Ensure `fetchInvoices` implements proper retry limits and delays
-   - Check: Frontend request handling and error boundaries
-
-7. **WebSocket Connection**
-   - Issue: Processing status updates not showing
-   - Solution: Ensure WebSocket connection is properly initialized
-   - Location: Check frontend WebSocket setup and error handling
 
 ---
 
