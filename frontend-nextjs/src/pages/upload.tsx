@@ -41,13 +41,38 @@ export default function UploadPage() {
   const wsTimeoutRef = useRef<NodeJS.Timeout>();
   const MAX_RECONNECT_ATTEMPTS = 5;
   const RECONNECT_DELAY = 2000;
-  const UPDATE_TIMEOUT = 30000;
+  const UPDATE_TIMEOUT = 30000; // 30 seconds
+  const HEARTBEAT_INTERVAL = 15000; // 15 seconds
 
   useEffect(() => {
     if (!isProcessingAll) return;
 
     let ws: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout;
+    let heartbeatTimeout: NodeJS.Timeout;
+    let heartbeatInterval: NodeJS.Timeout;
+
+    const setupHeartbeat = () => {
+      // Clear any existing heartbeat
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+
+      // Set up heartbeat interval
+      heartbeatInterval = setInterval(() => {
+        try {
+          ws?.send(JSON.stringify({ type: 'heartbeat_ack' }));
+        } catch (e) {
+          console.error('Failed to send heartbeat:', e);
+          ws?.close();
+        }
+      }, HEARTBEAT_INTERVAL);
+
+      // Set up heartbeat timeout
+      heartbeatTimeout = setTimeout(() => {
+        toast.error('Connection lost: no heartbeat received');
+        ws?.close();
+      }, HEARTBEAT_INTERVAL * 2);
+    };
 
     const connect = () => {
       if (wsState.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
@@ -58,34 +83,40 @@ export default function UploadPage() {
 
       ws = new WebSocket('ws://localhost:8000/ws/process_progress');
 
-      // Set update timeout
-      wsTimeoutRef.current = setTimeout(() => {
-        toast.error('No update received for 30 seconds. Connection may be lost.');
-        ws?.close();
-      }, UPDATE_TIMEOUT);
-
       ws.onopen = () => {
         setWsState(prev => ({
           ...prev,
           connected: true,
           lastError: null
         }));
+        
+        // Send initial message to indicate readiness
+        ws?.send(JSON.stringify({ type: 'start_processing' }));
+        
+        // Set up heartbeat after connection
+        setupHeartbeat();
+        
         toast.success('Connected to processing server');
       };
 
       ws.onmessage = (event) => {
         try {
-          // Reset timeout on each message
-          if (wsTimeoutRef.current) {
-            clearTimeout(wsTimeoutRef.current);
-          }
-          wsTimeoutRef.current = setTimeout(() => {
-            toast.error('No update received for 30 seconds. Connection may be lost.');
-            ws?.close();
-          }, UPDATE_TIMEOUT);
-
           const data = JSON.parse(event.data);
+          
+          // Reset heartbeat timeout on any message
+          if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+          heartbeatTimeout = setTimeout(() => {
+            toast.error('Connection lost: no heartbeat received');
+            ws?.close();
+          }, HEARTBEAT_INTERVAL * 2);
+
+          // Handle different message types
           switch (data.type) {
+            case 'heartbeat':
+              // Respond to heartbeat
+              ws?.send(JSON.stringify({ type: 'heartbeat_ack' }));
+              break;
+              
             case 'progress':
               setProcessingStatus(prev => ({
                 ...prev,
@@ -95,15 +126,18 @@ export default function UploadPage() {
                 currentFile: data.currentFile
               }));
               break;
+              
             case 'error':
               toast.error(`Error processing ${data.file}: ${data.error}`);
               break;
+              
             case 'complete':
-              if (wsTimeoutRef.current) {
-                clearTimeout(wsTimeoutRef.current);
-              }
               toast.success(data.message);
               setIsProcessingAll(false);
+              break;
+              
+            case 'status':
+              console.log('Status update:', data.message);
               break;
           }
         } catch (err) {
@@ -121,43 +155,34 @@ export default function UploadPage() {
       };
 
       ws.onclose = () => {
-        if (wsTimeoutRef.current) {
-          clearTimeout(wsTimeoutRef.current);
-        }
+        setWsState(prev => ({
+          ...prev,
+          connected: false,
+          reconnectAttempt: prev.reconnectAttempt + 1
+        }));
 
-        setWsState(prev => {
-          const newState = {
-            ...prev,
-            connected: false,
-            reconnectAttempt: prev.reconnectAttempt + 1
-          };
+        // Clean up heartbeat
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
 
-          if (newState.reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
-            reconnectTimeout = setTimeout(() => {
-              connect();
-            }, RECONNECT_DELAY);
-            toast.error(`Connection lost. Retrying in ${RECONNECT_DELAY / 1000} seconds... (Attempt ${newState.reconnectAttempt + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-          }
-
-          return newState;
-        });
+        // Attempt reconnection with exponential backoff
+        const backoffTime = Math.min(1000 * Math.pow(2, wsState.reconnectAttempt), 10000);
+        reconnectTimeout = setTimeout(connect, backoffTime);
       };
     };
 
     connect();
 
     return () => {
-      if (wsTimeoutRef.current) {
-        clearTimeout(wsTimeoutRef.current);
-      }
-      if (ws) {
+      // Cleanup
+      if (ws?.readyState === WebSocket.OPEN) {
         ws.close();
       }
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
     };
-  }, [isProcessingAll, wsState.reconnectAttempt]);
+  }, [isProcessingAll]);
 
   useEffect(() => {
     if (processingStatus && progressBarRef.current) {
