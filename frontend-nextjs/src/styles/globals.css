@@ -14,8 +14,9 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
-/* New rule for progress bar dynamic width */
-.progress-bar {
-  width: var(--progress-width, 0%);
-  transition: width 0.5s ease-in-out;
+@layer components {
+  .progress-bar {
+    @apply h-full bg-green-600 transition-all duration-300 ease-out;
+    width: var(--progress-width, 0%);
+  }
 }
