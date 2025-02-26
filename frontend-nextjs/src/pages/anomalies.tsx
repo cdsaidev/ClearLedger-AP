@@ -1,48 +1,22 @@
-import { useState, useEffect } from 'react';
-import { getAnomalies } from "../../lib/api";
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-
-interface Anomaly {
-  file_name: string;
-  reason: string;
-  timestamp: string;
-  review_status: string;
-  invoice_number?: string;
-  vendor_name?: string;
-  confidence?: number;
-  type: 'invalid_pdf' | 'extraction_error' | 'missing_data' | 'low_confidence' | 'processing_error' | 'system_error';
-}
+import { getAnomalies } from "../../lib/api";
+import { Anomaly } from '../types';
 
 export default function AnomaliesPage() {
-  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAnomalies = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getAnomalies();
-      if (!Array.isArray(data)) {
-        throw new Error('Invalid response format from server');
-      }
-      // Sort anomalies by timestamp in descending order
-      const sortedAnomalies = [...data].sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-      setAnomalies(sortedAnomalies);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load anomalies';
-      setError(message);
-      toast.error('Failed to load anomalies: ' + message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAnomalies();
-  }, []);
+  const { 
+    data: anomalies = [],
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['anomalies'],
+    queryFn: getAnomalies,
+    retry: 2,
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   const getAnomalyTypeColor = (type: Anomaly['type']) => {
     const colors = {
@@ -56,36 +30,46 @@ export default function AnomaliesPage() {
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
 
+  // Sort anomalies by timestamp in descending order
+  const sortedAnomalies = [...(anomalies || [])].sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+
   return (
     <div className="max-w-7xl mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Anomalies</h1>
         <button 
-          onClick={fetchAnomalies} 
-          disabled={loading}
+          onClick={() => refetch()}
+          disabled={isLoading}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
         >
-          {loading ? 'Refreshing...' : 'Refresh'}
+          {isLoading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-
-      {loading && (
-        <div className="flex justify-center py-8">
-          <p className="text-gray-500">Loading anomalies...</p>
+      {isError && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+          <p className="text-red-700">{error instanceof Error ? error.message : 'Failed to load anomalies'}</p>
         </div>
       )}
 
-      {!loading && anomalies.length === 0 && (
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <p className="ml-2 text-gray-600">Loading anomalies...</p>
+        </div>
+      )}
+
+      {!isLoading && sortedAnomalies.length === 0 && (
         <div className="bg-white p-6 rounded-lg shadow text-center">
           <p className="text-gray-500">No anomalies found.</p>
         </div>
       )}
 
-      {anomalies.length > 0 && (
+      {sortedAnomalies.length > 0 && (
         <div className="space-y-4">
-          {anomalies.map((anomaly, idx) => (
+          {sortedAnomalies.map((anomaly, idx) => (
             <div key={idx} className="bg-white p-4 rounded-lg shadow">
               <div className="flex items-start justify-between">
                 <div className="space-y-2 flex-grow">
