@@ -1,119 +1,172 @@
-import { useState, useEffect, useCallback } from 'react';
-import { getInvoices } from '../../lib/api';
-import { Invoice } from '../types';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
 interface Metrics {
-  total: number;
-  valid: number;
-  avg_time: number;
-  high_confidence_pct: number;
+  total_invoices: number;
+  status_breakdown: {
+    [key: string]: number;
+  };
+  confidence_metrics: {
+    average: number;
+    minimum: number;
+    maximum: number;
+    low_confidence_rate: number;
+  };
+  processing_metrics: {
+    average_seconds: number;
+    minimum_seconds: number;
+    maximum_seconds: number;
+    total_processed: number;
+  };
+  recent_activity: {
+    processed_24h: number;
+    low_confidence_24h: number;
+    valid_24h: number;
+    needs_review_24h: number;
+    avg_processing_time_24h: number;
+  };
+}
+
+// Function to fetch metrics from the API
+async function fetchMetrics(): Promise<Metrics> {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/metrics`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch metrics');
+  }
+  return response.json();
 }
 
 export default function MetricsPage() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 2000;
-  const TIMEOUT_DURATION = 10000;
-
-  const fetchMetricsWithTimeout = async (): Promise<Invoice[]> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_DURATION);
-
-    try {
-      const response = await getInvoices();
-      clearTimeout(timeoutId);
-      // Type assertion since we know the API returns Invoice[]
-      return response as Invoice[];
-    } catch (error: unknown) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  };
-
-  const fetchMetrics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const invoices = await fetchMetricsWithTimeout();
-      const total = invoices.length;
-      const valid = invoices.filter(invoice => invoice.status === 'valid').length;
-      
-      const avgTime = total ? invoices.reduce((sum, invoice) => 
-        sum + (invoice.total_time || 0), 0) / total : 0;
-      
-      const highConfidenceCount = invoices.filter(invoice => (invoice.confidence || 0) >= 0.7).length;
-      const highConfidencePct = total ? (highConfidenceCount / total) * 100 : 0;
-
-      setMetrics({ 
-        total, 
-        valid, 
-        avg_time: Number(avgTime.toFixed(2)),
-        high_confidence_pct: Number(highConfidencePct.toFixed(1))
-      });
-      setRetryCount(0);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(`Failed to load metrics: ${errorMessage}. Retrying...`);
-      if (retryCount < MAX_RETRIES) {
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          fetchMetrics();
-        }, RETRY_DELAY);
-        toast.error(`Attempt ${retryCount + 1}/${MAX_RETRIES}: ${errorMessage}`);
-      } else {
-        setError(`Failed to load metrics: ${errorMessage}`);
-        toast.error('Failed to load metrics after multiple attempts. Please refresh the page.');
-      }
-    } finally {
-      if (retryCount >= MAX_RETRIES) {
-        setLoading(false);
-      }
-    }
-  }, [retryCount, MAX_RETRIES, RETRY_DELAY]);
-
-  useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
+  const { 
+    data: metrics,
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['metrics'],
+    queryFn: fetchMetrics,
+    retry: 2,
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   return (
     <div className="max-w-7xl mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Metrics</h1>
         <button 
-          onClick={fetchMetrics} 
-          disabled={loading}
+          onClick={() => refetch()}
+          disabled={isLoading}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
         >
-          {loading ? 'Refreshing...' : 'Refresh'}
+          {isLoading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      {metrics ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">Total Invoices</h3>
-            <p className="mt-2 text-3xl font-semibold text-blue-600">{metrics.total}</p>
+
+      {isError && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+          <p className="text-red-700">{error instanceof Error ? error.message : 'Failed to load metrics'}</p>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <p className="ml-2 text-gray-600">Loading metrics...</p>
+        </div>
+      ) : metrics ? (
+        <div className="space-y-6">
+          {/* Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-900">Total Invoices</h3>
+              <p className="mt-2 text-3xl font-semibold text-blue-600">{metrics.total_invoices}</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-900">Processing Time</h3>
+              <p className="mt-2 text-3xl font-semibold text-green-600">{metrics.processing_metrics.average_seconds.toFixed(1)}s</p>
+              <p className="text-sm text-gray-500">Average</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-900">Confidence Score</h3>
+              <p className="mt-2 text-3xl font-semibold text-purple-600">{(metrics.confidence_metrics.average * 100).toFixed(1)}%</p>
+              <p className="text-sm text-gray-500">Average</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-900">Last 24h Activity</h3>
+              <p className="mt-2 text-3xl font-semibold text-orange-600">{metrics.recent_activity.processed_24h}</p>
+              <p className="text-sm text-gray-500">Invoices Processed</p>
+            </div>
           </div>
+
+          {/* Status Breakdown */}
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">Valid Invoices</h3>
-            <p className="mt-2 text-3xl font-semibold text-green-600">{metrics.valid}</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Status Breakdown</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Object.entries(metrics.status_breakdown).map(([status, count]) => (
+                <div key={status} className="text-center">
+                  <p className="text-2xl font-semibold text-gray-900">{count}</p>
+                  <p className="text-sm text-gray-500 capitalize">{status}</p>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Confidence Metrics */}
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">Average Processing Time</h3>
-            <p className="mt-2 text-3xl font-semibold text-purple-600">{metrics.avg_time}s</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confidence Analysis</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-blue-600">{(metrics.confidence_metrics.average * 100).toFixed(1)}%</p>
+                <p className="text-sm text-gray-500">Average</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-green-600">{(metrics.confidence_metrics.maximum * 100).toFixed(1)}%</p>
+                <p className="text-sm text-gray-500">Maximum</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-red-600">{(metrics.confidence_metrics.minimum * 100).toFixed(1)}%</p>
+                <p className="text-sm text-gray-500">Minimum</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-yellow-600">{(metrics.confidence_metrics.low_confidence_rate * 100).toFixed(1)}%</p>
+                <p className="text-sm text-gray-500">Low Confidence Rate</p>
+              </div>
+            </div>
           </div>
+
+          {/* Recent Activity */}
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900">High Confidence Invoices</h3>
-            <p className="mt-2 text-3xl font-semibold text-orange-600">{metrics.high_confidence_pct}%</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Last 24 Hours</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-blue-600">{metrics.recent_activity.processed_24h}</p>
+                <p className="text-sm text-gray-500">Processed</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-green-600">{metrics.recent_activity.valid_24h}</p>
+                <p className="text-sm text-gray-500">Valid</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-yellow-600">{metrics.recent_activity.needs_review_24h}</p>
+                <p className="text-sm text-gray-500">Needs Review</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-red-600">{metrics.recent_activity.low_confidence_24h}</p>
+                <p className="text-sm text-gray-500">Low Confidence</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-purple-600">{metrics.recent_activity.avg_processing_time_24h.toFixed(1)}s</p>
+                <p className="text-sm text-gray-500">Avg Processing Time</p>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
-        <p className="text-gray-500 text-center py-8">No metrics available.</p>
+        <div className="text-center py-8">
+          <p className="text-gray-500">No metrics available.</p>
+        </div>
       )}
     </div>
   );
