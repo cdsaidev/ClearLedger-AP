@@ -66,30 +66,81 @@ export default function InvoicesPage() {
 
     const handleViewPdf = async (invoiceNumber: string) => {
         const toastId = toast.loading('Fetching PDF...');
+        let timeoutId: NodeJS.Timeout | null = null;
+        
         try {
-            const blob = await getInvoicePdf(invoiceNumber);
+            // Set a client-side timeout to prevent hanging requests
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    reject(new Error('PDF fetch timed out after 20 seconds'));
+                }, 20000);
+            });
+            
+            // Race the fetch against the timeout
+            const blob = await Promise.race([
+                getInvoicePdf(invoiceNumber),
+                timeoutPromise
+            ]);
+            
+            // Clear timeout if fetch succeeded
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            // Check if the blob is valid
+            if (!blob || blob.size === 0) {
+                throw new Error('Empty or invalid PDF received');
+            }
+            
+            // Create and validate the blob URL
             const url = window.URL.createObjectURL(blob);
+            
+            // Try to open the PDF in a new window
             const newWindow = window.open(url, '_blank');
             
             if (!newWindow) {
                 toast.error('Please allow popups to view PDFs', { id: toastId });
             } else {
                 toast.success('PDF opened successfully', { id: toastId });
+                
+                // Monitor if PDF viewer becomes ready
+                const checkWindowLoaded = () => {
+                    try {
+                        if (newWindow.document.readyState === 'complete') {
+                            toast.dismiss(toastId);
+                        } else {
+                            setTimeout(checkWindowLoaded, 1000);
+                        }
+                    } catch (e) {
+                        // Access might be denied due to cross-origin policy
+                        toast.dismiss(toastId);
+                    }
+                };
+                
+                setTimeout(checkWindowLoaded, 1000);
             }
             
-            // Clean up the blob URL after a delay
+            // Clean up the blob URL after a longer delay, giving browser time to load it
             setTimeout(() => {
                 window.URL.revokeObjectURL(url);
-            }, 1000);
+            }, 60000); // 60 seconds delay before revoking URL
+            
         } catch (error) {
             console.error('Error viewing PDF:', error);
+            
+            // Clear timeout if it exists
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            // Provide specific error messages based on the error type
             let errorMessage = 'Failed to load PDF';
             
             if (error instanceof Error) {
-                if (error.message.includes('not found')) {
+                if (error.message.includes('timed out')) {
+                    errorMessage = 'PDF loading timed out. The file may be too large or the server is busy.';
+                } else if (error.message.includes('not found')) {
                     errorMessage = 'PDF not found. The file may have been deleted or moved.';
                 } else if (error.message.includes('Failed to retrieve PDF from S3')) {
                     errorMessage = 'Unable to retrieve PDF from storage. Please try again later.';
+                } else if (error.message.includes('Invalid response')) {
+                    errorMessage = 'Server returned an invalid PDF response format.';
                 } else {
                     errorMessage = error.message;
                 }
