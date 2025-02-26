@@ -219,14 +219,16 @@ async def process_all_invoices():
                         logger.error(f"S3 upload timeout for {pdf_path.name}")
                         continue
 
-                    # Prepare database entry
+                    # Prepare database entry with new fields
                     db_entry = {
                         'invoice_number': invoice_id,
                         'vendor_name': extracted_data.get('vendor_name', ''),
                         'invoice_date': extracted_data.get('invoice_date', ''),
                         'total_amount': float(extracted_data.get('total_amount', 0)),
                         'status': 'valid' if extracted_data.get('confidence', 0) >= 0.7 else 'needs_review',
-                        'pdf_url': s3_result.get('pdf_url', '')
+                        'pdf_url': s3_result.get('pdf_url', ''),
+                        'confidence': extracted_data.get('confidence', 0.0),
+                        'total_time': result.get('processing_time', 0.0)
                     }
 
                     # Save to database with validation
@@ -445,7 +447,9 @@ async def upload_invoice(file: UploadFile = File(...)):
                 'invoice_date': extracted_data['invoice_date'],
                 'total_amount': float(extracted_data['total_amount']),
                 'status': 'valid' if extracted_data.get('confidence', 0) >= 0.7 else 'needs_review',
-                'pdf_url': s3_result['pdf_url']
+                'pdf_url': s3_result['pdf_url'],
+                'confidence': extracted_data.get('confidence', 0.0),
+                'total_time': result.get('processing_time', 0.0)
             }
             
             try:
@@ -594,7 +598,7 @@ async def get_invoice_pdf(invoice_id: str):
             
         except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'NoSuchKey':
+            if (error_code == 'NoSuchKey'):
                 logger.error(f"PDF not found in S3 bucket: {BUCKET_NAME}/{s3_key}")
                 raise HTTPException(
                     status_code=404,
