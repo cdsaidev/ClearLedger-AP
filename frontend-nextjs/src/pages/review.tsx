@@ -66,16 +66,18 @@ export default function ReviewPage() {
     setLoading(true);
     setError(null);
     try {
-      const fetchedInvoices = await getInvoices() as Invoice[];
-      // Filter to only show invoices that need review
-      const reviewInvoices = fetchedInvoices.filter((invoice: Invoice) => 
+      const fetchedInvoices = await getInvoices();
+      // Filter to only show invoices that need review or have confidence below threshold
+      const reviewInvoices = fetchedInvoices.filter((invoice) => 
         invoice.status === "needs_review" || 
-        invoice.status === "failed"
+        invoice.status === "failed" ||
+        (invoice.confidence !== undefined && invoice.confidence < 0.7)
       );
       setInvoices(reviewInvoices);
     } catch (err) {
       console.error('Error fetching invoices:', err);
-      setError('Failed to load invoices. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to load invoices');
+      toast.error('Failed to load invoices for review');
     } finally {
       setLoading(false);
     }
@@ -85,34 +87,31 @@ export default function ReviewPage() {
     fetchInvoices();
   }, []);
 
-  // Updated onSubmit function with proper type instead of any
+  // Enhanced onSubmit with better error handling
   const onSubmit: (data: FormInputs) => Promise<void> = async (data: FormInputs) => {
+    if (!selectedInvoice?.invoice_number) {
+      toast.error('No invoice selected');
+      return;
+    }
+
     setLoading(true);
     try {
-      const invoiceId = selectedInvoice?.invoice_number;
-      if (!invoiceId) throw new Error('No invoice selected');
-
-      const formattedData = {
-        ...data,
-        // After reviewing, mark as valid
-        status: 'valid',
-        invoice_number: invoiceId
-      };
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/invoices/${invoiceId}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/invoices/${selectedInvoice.invoice_number}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formattedData),
+        body: JSON.stringify({
+          ...data,
+          validation_status: 'valid',  // After review, mark as valid
+          confidence: 1.0  // Set confidence to 1.0 after manual review
+        }),
       });
 
-      if (!response.ok) throw new Error(await response.text());
-      console.log('Invoice updated successfully');
       toast.success('Invoice updated successfully');
       setSelectedInvoice(null);
-      fetchInvoices();
+      await fetchInvoices(); // Refresh the list
     } catch (error) {
       console.error('Error saving invoice:', error);
-      toast.error('Failed to save invoice');
+      toast.error(error instanceof Error ? error.message : 'Failed to save invoice');
       setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
@@ -143,9 +142,11 @@ export default function ReviewPage() {
                 <div>
                   <p className="font-medium">Invoice: {invoice.invoice_number}</p>
                   <p className="text-sm text-gray-600">Vendor: {invoice.vendor_name}</p>
-                  <p className="text-sm text-gray-600">Amount: {invoice.total_amount}</p>
+                  <p className="text-sm text-gray-600">Amount: £{invoice.total_amount.toFixed(2)}</p>
                   <p className="text-sm text-gray-600">
-                    Confidence: {typeof invoice.confidence === 'number' ? (invoice.confidence * 100).toFixed(1) : 'N/A'}%
+                    Confidence: {invoice.confidence !== undefined && invoice.confidence !== null
+                      ? `${(invoice.confidence * 100).toFixed(1)}%`
+                      : 'N/A'}
                   </p>
                   <p className="text-sm text-gray-600">Status: {invoice.status || 'Unknown'}</p>
                   <button
