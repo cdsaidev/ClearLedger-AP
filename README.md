@@ -471,38 +471,49 @@ Pre-built images are available at:
 ### Remaining Tasks (Days 8-10)
 - Day 8: Performance Optimization & Submission
 
-## Future Enhancement: Database-Backed Invoice Management
+## Database Integration Update (February 26 2025)
 
-### Context
-The current file-based system (`data/raw/invoices/`) suits the 10-day challenge’s scope. For 5,000 monthly invoices, a database was planned to enhance scalability and real-time features.
+The project has migrated from JSON-based storage to SQLite and AWS S3 for improved scalability:
+- SQLite database (`invoices.db`) for invoice metadata
+- AWS S3 for PDF document storage
+- Removed dependency on `structured_invoices.json`
 
-### Proposed Solution
-- **Database**: PostgreSQL for invoice metadata (e.g., invoice_number, total_amount).
-- **Storage**: AWS S3 for PDF storage with versioning.
+### Updated Setup Instructions
 
-#### Implementation Steps
-1. **Database Setup** (1-2 days): Initialize PostgreSQL with indexed tables.
-2. **Storage Integration** (1 day): Configure S3, update `main.py` to store PDF URLs.
-3. **API Updates** (1-2 days): Modify FastAPI endpoints (`review_api.py`) to query the database.
-4. **Frontend Adjustments** (1 day): Enhance `invoices.tsx` and `metrics.tsx` for real-time DB queries.
+1. **Database Setup**
+   ```bash
+   # Place invoices.db in project root
+   python migrate_json_to_db.py  # Migrates data from structured_invoices.json
+   ```
 
-### Benefits
-- Scalability for high invoice volumes
-- Fast, real-time data retrieval for Next.js UI
-- Secure, reliable storage
+2. **AWS S3 Configuration**
+   - Create a public S3 bucket
+   - Set environment variables in `.env`:
+     ```
+     AWS_ACCESS_KEY_ID=your_access_key
+     AWS_SECRET_ACCESS_KEY=your_secret_key
+     BUCKET_NAME=your_bucket_name
+     ```
+   - Ensure bucket has public read access
 
-### Why Not Implemented
-The 10-day timeline prioritized core functionality. The system’s modularity (e.g., `InvoiceProcessingWorkflow` in `orchestrator.py`) supports future database adoption.
+3. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt  # Backend
+   cd frontend-nextjs && npm install  # Frontend
+   ```
 
-### Post-Submission Roadmap
-Over 3 weeks post-delivery:
-- **Week 1**: Database setup and data migration.
-- **Week 2**: S3 integration and API updates.
-- **Week 3**: Frontend enhancements for live updates.
+4. **Run the Application**
+   ```bash
+   # Terminal 1 - Backend
+   python api/app.py  # Runs on port 8000
 
-### Consideration
-Real-time WebSocket updates might strain DB connections; connection pooling could optimize performance.
+   # Terminal 2 - Frontend
+   cd frontend-nextjs && npm run dev  # Runs on port 3000
+   ```
 
----
+5. **Post-Migration**
+   - Archive `data/processed/structured_invoices.json` after successful migration
+   - Verify data in SQLite database
+   - Test S3 file uploads
 
 **Built with ❤️ for the Technical Challenge**
