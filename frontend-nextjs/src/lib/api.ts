@@ -1,54 +1,81 @@
-import { Invoice, UploadResponse } from '../types';
+import { Invoice, UploadResponse, Anomaly } from '../types';
 
 export async function uploadInvoice(file: File): Promise<UploadResponse> {
-  // Create a FormData object and append the file
-  const formData = new FormData();
-  formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-  // Declare the response variable properly
-  const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/upload_invoice`, {
-    method: 'POST',
-    body: formData,
-  });
+    const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/upload_invoice`, {
+        method: 'POST',
+        body: formData,
+    });
 
-  if (!response.ok) {
     const contentType = response.headers.get('Content-Type');
-    if (contentType && contentType.includes('application/json')) {
-      const errorData = await response.json();
-      throw new Error(JSON.stringify(errorData));
-    } else {
-      const text = await response.text();
-      throw new Error(`Upload failed: ${text}`);
+    const data = contentType?.includes('application/json') 
+        ? await response.json()
+        : { status: 'error', detail: await response.text() };
+
+    if (!response.ok) {
+        throw new Error(data.detail || 'Upload failed');
     }
-  }
-  return response.json();
+
+    return data as UploadResponse;
 }
 
 export async function getInvoices(): Promise<Invoice[]> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/invoices`, {
-    method: 'GET'
-  });
-  if (!response.ok) throw new Error('Failed to fetch invoices');
-  const data = await response.json();
-  return data as Invoice[];
+    const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/invoices`, {
+        method: 'GET'
+    });
+    
+    if (!response.ok) {
+        const contentType = response.headers.get('Content-Type');
+        if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to fetch invoices');
+        }
+        throw new Error('Failed to fetch invoices');
+    }
+
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+        return []; // Return empty array if response is not an array
+    }
+    return data as Invoice[];
 }
 
 export async function getInvoicePdf(invoiceId: string): Promise<Blob> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/invoice_pdf/${invoiceId}`);
-  if (!response.ok) {
-    if (response.status === 404) throw new Error('PDF not found for this invoice');
-    const contentType = response.headers.get('Content-Type');
-    if (contentType && contentType.includes('application/json')) {
-      const errorData: { detail?: string } = await response.json();
-      throw new Error(errorData.detail || 'Failed to retrieve PDF');
+    const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/invoice_pdf/${invoiceId}`);
+    if (!response.ok) {
+        const contentType = response.headers.get('Content-Type');
+        if (contentType?.includes('application/json')) {
+            const data = await response.json();
+            // For S3-based PDFs that return a URL
+            if (data.pdf_url) {
+                const pdfResponse = await fetch(data.pdf_url);
+                if (!pdfResponse.ok) {
+                    throw new Error('Failed to retrieve PDF from S3');
+                }
+                return pdfResponse.blob();
+            }
+            throw new Error(data.detail || 'Failed to retrieve PDF');
+        }
+        if (response.status === 404) {
+            throw new Error('PDF not found for this invoice');
+        }
+        throw new Error('Failed to retrieve PDF');
     }
-    throw new Error('Failed to retrieve PDF');
-  }
-  return response.blob();
+    return response.blob();
 }
 
-export async function getAnomalies(): Promise<unknown> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/anomalies`);
-  if (!response.ok) throw new Error('Failed to fetch anomalies');
-  return response.json();
+export async function getAnomalies(): Promise<Anomaly[]> {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/anomalies`);
+    if (!response.ok) {
+        const contentType = response.headers.get('Content-Type');
+        if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to fetch anomalies');
+        }
+        throw new Error('Failed to fetch anomalies');
+    }
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
 }
