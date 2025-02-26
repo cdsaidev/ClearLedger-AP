@@ -69,8 +69,8 @@ export default function ReviewPage() {
       const fetchedInvoices = await getInvoices() as Invoice[];
       // Filter to only show invoices that need review
       const reviewInvoices = fetchedInvoices.filter((invoice: Invoice) => 
-        invoice.review_status === "needs_review" || 
-        invoice.validation_status === "failed"
+        invoice.status === "needs_review" || 
+        invoice.status === "failed"
       );
       setInvoices(reviewInvoices);
     } catch (err) {
@@ -94,8 +94,8 @@ export default function ReviewPage() {
 
       const formattedData = {
         ...data,
-        // Assume data.invoice_date is a string in YYYY-MM-DD format
-        invoice_date: data.invoice_date,
+        // After reviewing, mark as valid
+        status: 'valid',
         invoice_number: invoiceId
       };
 
@@ -147,7 +147,7 @@ export default function ReviewPage() {
                   <p className="text-sm text-gray-600">
                     Confidence: {typeof invoice.confidence === 'number' ? (invoice.confidence * 100).toFixed(1) : 'N/A'}%
                   </p>
-                  <p className="text-sm text-gray-600">Status: {invoice.validation_status || 'Unknown'}</p>
+                  <p className="text-sm text-gray-600">Status: {invoice.status || 'Unknown'}</p>
                   <button
                     onClick={() => {
                       console.log('Button clicked for invoice:', invoice.invoice_number);
