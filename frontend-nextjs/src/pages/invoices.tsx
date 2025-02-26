@@ -207,7 +207,7 @@ export default function InvoicesPage() {
                 </div>
             )}
 
-            {!isLoading && invoiceData?.data.length === 0 && (
+            {!isLoading && invoiceData?.data && invoiceData.data.length === 0 && (
                 <div className="text-center py-8">
                     <p className="text-gray-500 mb-4">No invoices found.</p>
                     <Link
@@ -219,7 +219,7 @@ export default function InvoicesPage() {
                 </div>
             )}
 
-            {invoiceData?.data.length > 0 && (
+            {invoiceData?.data && invoiceData.data.length > 0 && (
                 <div className="overflow-x-auto shadow-md rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
