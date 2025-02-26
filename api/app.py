@@ -31,51 +31,56 @@ app = FastAPI()
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
-        self.heartbeat_interval = 15  # seconds
-        self._heartbeat_tasks = {}
+        self.heartbeat_interval = 30  # seconds
+        self.last_message = {}  # Store last message per connection
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
-        self._heartbeat_tasks[websocket] = asyncio.create_task(self._heartbeat(websocket))
-        logger.info("WebSocket client connected")
+        self.last_message[id(websocket)] = time.time()
+        
+        # Send initial connection confirmation
+        try:
+            await websocket.send_json({
+                "type": "connection_status",
+                "status": "connected"
+            })
+        except Exception as e:
+            logger.error(f"Error sending connection confirmation: {e}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            if websocket in self._heartbeat_tasks:
-                self._heartbeat_tasks[websocket].cancel()
-                del self._heartbeat_tasks[websocket]
-            logger.info("WebSocket client disconnected")
-
-    async def _heartbeat(self, websocket: WebSocket):
-        """Send periodic heartbeat to keep connection alive."""
-        try:
-            while True:
-                await asyncio.sleep(self.heartbeat_interval)
-                try:
-                    await websocket.send_json({"type": "heartbeat"})
-                except Exception as e:
-                    logger.error(f"Heartbeat failed: {str(e)}")
-                    self.disconnect(websocket)
-                    break
-        except asyncio.CancelledError:
-            pass
+        if id(websocket) in self.last_message:
+            del self.last_message[id(websocket)]
 
     async def broadcast(self, message: dict):
-        """Broadcast a message to all connected clients."""
-        disconnected = []
+        dead_connections = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
+                self.last_message[id(connection)] = time.time()
             except WebSocketDisconnect:
-                disconnected.append(connection)
+                dead_connections.append(connection)
             except Exception as e:
-                logger.error(f"Error sending WebSocket message: {str(e)}")
-                disconnected.append(connection)
+                logger.error(f"Error broadcasting message: {e}")
+                dead_connections.append(connection)
         
-        for connection in disconnected:
-            self.disconnect(connection)
+        # Clean up dead connections
+        for dead in dead_connections:
+            self.disconnect(dead)
+
+    async def check_connections(self):
+        """Periodic check of connection health"""
+        current_time = time.time()
+        dead_connections = []
+        for connection in self.active_connections:
+            last_msg_time = self.last_message.get(id(connection), 0)
+            if current_time - last_msg_time > self.heartbeat_interval * 2:
+                dead_connections.append(connection)
+        
+        for dead in dead_connections:
+            self.disconnect(dead)
 
 # Initialize connection manager
 manager = ConnectionManager()
@@ -212,160 +217,179 @@ async def process_all_invoices():
         pdf_files = list(pdf_dir.glob("*.pdf"))
         if not pdf_files:
             return {"status": "completed", "message": "No PDF files found to process", "processed": 0}
-
+        
+        # Start by broadcasting the initial count
+        await manager.broadcast({
+            "type": "progress", 
+            "current": 0, 
+            "total": len(pdf_files),
+            "failed": 0, 
+            "processed": 0,
+            "skipped": 0
+        })
+        
         workflow = InvoiceProcessingWorkflow()
         total_files = len(pdf_files)
         processed = 0
         failed = 0
+        skipped = 0
         db = InvoiceDB()
+        batch_size = 5
 
-        for i, pdf_path in enumerate(pdf_files, 1):
-            temp_path = Path(f"data/temp/{uuid.uuid4()}.pdf")
-            logger.info(f"Starting processing of invoice {pdf_path.name} ({i}/{total_files})")
+        # Process in batches
+        for batch_start in range(0, len(pdf_files), batch_size):
+            batch_end = min(batch_start + batch_size, len(pdf_files))
+            batch_files = pdf_files[batch_start:batch_end]
+            batch_results = []
             
-            try:
-                shutil.copy2(pdf_path, temp_path)
-                await manager.broadcast({
-                    "type": "progress", "current": i, "total": total_files,
-                    "failed": failed, "currentFile": pdf_path.name
-                })
-
+            # First, extract invoice numbers from batch to check duplicates
+            for pdf_path in batch_files:
+                temp_path = Path(f"data/temp/{uuid.uuid4()}.pdf")
                 try:
-                    # Add timeout to processing
-                    result = await asyncio.wait_for(
-                        workflow.process_invoice(str(temp_path), save_pdf=False),
-                        timeout=60.0  # 60-second timeout per invoice
-                    )
-                    
-                    if result.get("status") == "error":
+                    shutil.copy2(pdf_path, temp_path)
+                    result = await workflow.process_invoice(str(temp_path), save_pdf=False)
+                    if result and result.get('extracted_data', {}).get('invoice_number'):
+                        batch_results.append({
+                            'path': pdf_path,
+                            'extracted_data': result.get('extracted_data'),
+                            'processing_result': result
+                        })
+                    else:
                         failed += 1
-                        error_msg = result.get('message', 'Unknown error')
-                        logger.error(f"Failed to process {pdf_path.name}: {error_msg}")
                         await manager.broadcast({
                             "type": "error",
                             "file": pdf_path.name,
-                            "error": error_msg
+                            "error": "Failed to extract data"
+                        })
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"Error processing {pdf_path.name}: {str(e)}")
+                    await manager.broadcast({
+                        "type": "error",
+                        "file": pdf_path.name,
+                        "error": str(e)
+                    })
+                finally:
+                    if temp_path.exists():
+                        temp_path.unlink()
+
+            if batch_results:
+                # Check for duplicates efficiently
+                invoice_numbers = [r['extracted_data']['invoice_number'] for r in batch_results]
+                duplicates = db.batch_check_duplicates(invoice_numbers)
+                
+                # Process non-duplicates
+                to_process = []
+                for result in batch_results:
+                    invoice_number = result['extracted_data']['invoice_number']
+                    if duplicates.get(invoice_number):
+                        skipped += 1
+                        await manager.broadcast({
+                            "type": "warning",
+                            "file": result['path'].name,
+                            "message": "Skipped duplicate invoice"
                         })
                         continue
-
-                    extracted_data = result.get('extracted_data', {})
-                    if not extracted_data:
-                        failed += 1
-                        logger.error(f"No data extracted from {pdf_path.name}")
-                        continue
-
-                    invoice_id = extracted_data.get('invoice_number')
-                    if not invoice_id:
-                        failed += 1
-                        logger.error(f"No invoice number found in {pdf_path.name}")
-                        continue
-
-                    # Upload to S3 with timeout
+                    
+                    # Upload to S3
                     try:
-                        async with asyncio.timeout(30.0):  # 30-second timeout for S3 upload
-                            with open(pdf_path, 'rb') as pdf_file:
-                                s3_result = process_invoice_and_save(pdf_file.read(), invoice_id)
-                    except asyncio.TimeoutError:
+                        with open(result['path'], 'rb') as pdf_file:
+                            s3_result = process_invoice_and_save(pdf_file.read(), invoice_number)
+                            
+                            # Prepare database entry
+                            extracted_data = result['extracted_data']
+                            to_process.append({
+                                'invoice_number': invoice_number,
+                                'vendor_name': extracted_data.get('vendor_name', ''),
+                                'invoice_date': extracted_data.get('invoice_date', ''),
+                                'total_amount': float(extracted_data.get('total_amount', 0)),
+                                'status': 'valid' if extracted_data.get('confidence', 0) >= 0.7 else 'needs_review',
+                                'pdf_url': s3_result.get('pdf_url', ''),
+                                'confidence': extracted_data.get('confidence', 0.0),
+                                'total_time': result['processing_result'].get('total_time', 0.0)
+                            })
+                    except Exception as e:
                         failed += 1
-                        logger.error(f"S3 upload timeout for {pdf_path.name}")
-                        continue
-
-                    # Prepare database entry with new fields
-                    db_entry = {
-                        'invoice_number': invoice_id,
-                        'vendor_name': extracted_data.get('vendor_name', ''),
-                        'invoice_date': extracted_data.get('invoice_date', ''),
-                        'total_amount': float(extracted_data.get('total_amount', 0)),
-                        'status': 'valid' if extracted_data.get('confidence', 0) >= 0.7 else 'needs_review',
-                        'pdf_url': s3_result.get('pdf_url', ''),
-                        'confidence': extracted_data.get('confidence', 0.0),
-                        'total_time': result.get('processing_time', 0.0)
-                    }
-
-                    # Save to database with validation
-                    try:
-                        if all(db_entry.values()):  # Ensure all required fields have values
-                            db.insert_invoice(db_entry)
+                        logger.error(f"S3 upload error for {result['path'].name}: {str(e)}")
+                        await manager.broadcast({
+                            "type": "error",
+                            "file": result['path'].name,
+                            "error": f"S3 upload failed: {str(e)}"
+                        })
+                
+                # Batch insert into database
+                if to_process:
+                    insert_results = db.batch_insert_invoices(to_process)
+                    for (success, _, error), result in zip(insert_results, to_process):
+                        if success:
                             processed += 1
-                            logger.info(f"Successfully processed invoice {pdf_path.name}")
+                            # Check confidence and save anomaly if needed
+                            if result['confidence'] < 0.7:
+                                save_anomaly({
+                                    "file_name": f"{result['invoice_number']}.pdf",
+                                    "invoice_number": result['invoice_number'],
+                                    "vendor_name": result['vendor_name'],
+                                    "reason": "Low confidence extraction",
+                                    "confidence": result['confidence'],
+                                    "review_status": "needs_review",
+                                    "type": "low_confidence"
+                                })
                         else:
                             failed += 1
-                            logger.error(f"Invalid database entry for {pdf_path.name}: {db_entry}")
-                    except Exception as db_error:
-                        failed += 1
-                        logger.error(f"Database error for {pdf_path.name}: {str(db_error)}")
-                        continue
-
-                    # Handle low confidence cases
-                    if extracted_data.get('confidence', 0) < 0.7:
-                        save_anomaly({
-                            "file_name": pdf_path.name,
-                            "invoice_number": invoice_id,
-                            "vendor_name": extracted_data.get('vendor_name'),
-                            "reason": "Low confidence extraction",
-                            "confidence": extracted_data.get('confidence', 0),
-                            "review_status": "needs_review",
-                            "type": "low_confidence"
-                        })
-
-                except asyncio.TimeoutError:
-                    failed += 1
-                    logger.error(f"Processing timeout for {pdf_path.name}")
-                    await manager.broadcast({
-                        "type": "error",
-                        "file": pdf_path.name,
-                        "error": "Processing timed out"
-                    })
-                except Exception as process_error:
-                    failed += 1
-                    logger.error(f"Error processing {pdf_path.name}: {str(process_error)}")
-                    await manager.broadcast({
-                        "type": "error",
-                        "file": pdf_path.name,
-                        "error": str(process_error)
-                    })
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"Unhandled error for {pdf_path.name}: {str(e)}")
-                await manager.broadcast({
-                    "type": "error",
-                    "file": pdf_path.name,
-                    "error": str(e)
-                })
-            finally:
-                if temp_path.exists():
-                    temp_path.unlink()  # Clean up temp file
-
-            # Add a small delay between files to prevent resource exhaustion
-            await asyncio.sleep(0.5)
-
-        # Broadcast final status
+                            logger.error(f"Database error for invoice {result['invoice_number']}: {error}")
+            
+            # Update progress after batch
+            current_progress = min(batch_end, total_files)
+            await manager.broadcast({
+                "type": "progress", 
+                "current": current_progress, 
+                "total": total_files,
+                "failed": failed, 
+                "processed": processed,
+                "skipped": skipped,
+                "currentFile": batch_files[-1].name if batch_files else None
+            })
+            
+            # Small delay between batches
+            await asyncio.sleep(0.2)
+        
+        # Final status
+        summary_message = f"Processing complete: {processed} processed, {failed} failed, {skipped} skipped"
         await manager.broadcast({
             "type": "complete",
-            "message": f"Processed {processed} files, {failed} failed",
-            "current": total_files,
-            "total": total_files
-        })
-
-        return {
-            "status": "completed",
-            "message": f"Processed {processed} files, {failed} failed",
+            "message": summary_message,
             "processed": processed,
             "failed": failed,
+            "skipped": skipped,
+            "total": total_files
+        })
+        
+        return {
+            "status": "completed",
+            "message": summary_message,
+            "processed": processed,
+            "failed": failed,
+            "skipped": skipped,
             "total": total_files
         }
-
+        
     except Exception as e:
         logger.error(f"Batch processing error: {str(e)}")
-        return {"status": "error", "message": f"Batch processing failed: {str(e)}"}
+        await manager.broadcast({
+            "type": "error",
+            "error": f"Batch processing failed: {str(e)}"
+        })
+        return {"status": "error", "message": str(e)}
     finally:
-        # Ensure any remaining temp files are cleaned up
-        for temp_file in Path("data/temp").glob("*.pdf"):
-            try:
-                temp_file.unlink()
-            except Exception as e:
-                logger.error(f"Failed to clean up temp file {temp_file}: {str(e)}")
+        # Cleanup temp files
+        try:
+            for temp_file in Path("data/temp").glob("*.pdf"):
+                try:
+                    temp_file.unlink()
+                except Exception as e:
+                    logger.error(f"Failed to clean up temp file {temp_file}: {str(e)}")
+        except Exception:
+            pass
 
 def save_invoice(invoice_data: dict):
     try:
@@ -426,7 +450,6 @@ async def upload_invoice(file: UploadFile = File(...)):
             status_code=400,
             detail="No file provided"
         )
-
     temp_path = StorageConfig.get_temp_path()
     try:
         content = await file.read()
@@ -486,12 +509,32 @@ async def upload_invoice(file: UploadFile = File(...)):
             
             invoice_id = extracted_data['invoice_number']
             
+            # Check if invoice already exists before processing
+            db = InvoiceDB()
+            existing_invoice = db.get_invoice_by_number(invoice_id)
+            
+            if existing_invoice:
+                logger.info(f"Invoice {invoice_id} already exists in the database")
+                return {
+                    "status": "warning", 
+                    "detail": "This invoice has already been processed",
+                    "type": "duplicate_invoice",
+                    "extracted_data": extracted_data,
+                    "existing_invoice": {
+                        "invoice_number": existing_invoice["invoice_number"],
+                        "vendor_name": existing_invoice["vendor_name"],
+                        "invoice_date": existing_invoice["invoice_date"],
+                        "total_amount": float(existing_invoice["total_amount"]),
+                        "status": existing_invoice["status"],
+                        "pdf_url": existing_invoice["pdf_url"]
+                    }
+                }
+            
             # Save PDF to S3
             s3_result = process_invoice_and_save(content, invoice_id)
             logger.info(f"Saved PDF for invoice {invoice_id} to S3: {s3_result['pdf_url']}")
             
-            # Save to database
-            db = InvoiceDB()
+            # Save to database with improved error handling
             db_entry = {
                 'invoice_number': extracted_data['invoice_number'],
                 'vendor_name': extracted_data['vendor_name'],
@@ -503,15 +546,23 @@ async def upload_invoice(file: UploadFile = File(...)):
                 'total_time': result.get('processing_time', 0.0)
             }
             
-            try:
-                db.insert_invoice(db_entry)
-                logger.info(f"Saved invoice {invoice_id} to database")
-            except Exception as db_error:
-                logger.error(f"Failed to save invoice to database: {str(db_error)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to save invoice to database: {str(db_error)}"
-                )
+            is_new, db_id, error_message = db.insert_invoice(db_entry)
+            
+            if error_message:
+                if "already exists" in error_message:
+                    return {
+                        "status": "warning",
+                        "detail": "This invoice has already been processed",
+                        "type": "duplicate_invoice",
+                        "extracted_data": extracted_data
+                    }
+                else:
+                    logger.error(f"Database error: {error_message}")
+                    return {
+                        "status": "error",
+                        "detail": f"Database error: {error_message}",
+                        "type": "database_error"
+                    }
             
             if extracted_data.get('confidence', 0) < 0.7:
                 anomaly_data = {
