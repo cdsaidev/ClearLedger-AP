@@ -4,10 +4,8 @@ export interface Invoice {
     vendor_name: string;
     total_amount: number;
     confidence?: number;  // Optional because only present in extraction results
-    validation_status?: string;  // Optional legacy field
-    review_status?: string;  // Optional for review workflow
     invoice_date: string;
-    status: string;  // From database
+    status: string;  // Current status from database
     pdf_url: string;
     created_at?: string;  // Optional because not present in extraction results
 }
