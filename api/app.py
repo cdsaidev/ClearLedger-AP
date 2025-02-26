@@ -1,6 +1,7 @@
 import sys
 import os
 import shutil
+import asyncio  # Add asyncio import
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -155,18 +156,11 @@ async def process_all_invoices():
     pdf_dir = Path("data/raw/invoices")
     try:
         if not pdf_dir.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Invoice directory not found: {pdf_dir}"
-            )
-        
+            raise HTTPException(status_code=404, detail=f"Invoice directory not found: {pdf_dir}")
+
         pdf_files = list(pdf_dir.glob("*.pdf"))
         if not pdf_files:
-            return {
-                "status": "completed",
-                "message": "No PDF files found to process",
-                "processed": 0
-            }
+            return {"status": "completed", "message": "No PDF files found to process", "processed": 0}
 
         workflow = InvoiceProcessingWorkflow()
         total_files = len(pdf_files)
@@ -176,65 +170,111 @@ async def process_all_invoices():
 
         for i, pdf_path in enumerate(pdf_files, 1):
             temp_path = Path(f"data/temp/{uuid.uuid4()}.pdf")
+            logger.info(f"Starting processing of invoice {pdf_path.name} ({i}/{total_files})")
+            
             try:
                 shutil.copy2(pdf_path, temp_path)
                 await manager.broadcast({
-                    "type": "progress",
-                    "current": i,
-                    "total": total_files,
-                    "failed": failed,
-                    "currentFile": pdf_path.name
+                    "type": "progress", "current": i, "total": total_files,
+                    "failed": failed, "currentFile": pdf_path.name
                 })
 
-                result = await workflow.process_invoice(str(temp_path), save_pdf=False)
-                if result.get("status") == "error":
-                    failed += 1
-                    logger.error(f"Failed to process {pdf_path.name}: {result.get('message')}")
-                else:
-                    extracted_data = result.get('extracted_data', {})
+                try:
+                    # Add timeout to processing
+                    result = await asyncio.wait_for(
+                        workflow.process_invoice(str(temp_path), save_pdf=False),
+                        timeout=60.0  # 60-second timeout per invoice
+                    )
                     
-                    try:
-                        # Upload PDF to S3
-                        with open(pdf_path, 'rb') as pdf_file:
-                            s3_result = process_invoice_and_save(pdf_file.read(), extracted_data['invoice_number'])
-                        
-                        # Save to database
-                        db_entry = {
-                            'invoice_number': extracted_data['invoice_number'],
-                            'vendor_name': extracted_data['vendor_name'],
-                            'invoice_date': extracted_data['invoice_date'],
-                            'total_amount': float(extracted_data['total_amount']),
-                            'status': 'valid' if extracted_data.get('confidence', 0) >= 0.7 else 'needs_review',
-                            'pdf_url': s3_result['pdf_url']
-                        }
-                        
-                        db.insert_invoice(db_entry)
-                        processed += 1
-                        logger.info(f"Successfully processed and saved invoice {pdf_path.name} to S3")
-                        
-                        if extracted_data.get('confidence', 0) < 0.7:
-                            save_anomaly({
-                                "file_name": pdf_path.name,
-                                "invoice_number": extracted_data['invoice_number'],
-                                "vendor_name": extracted_data['vendor_name'],
-                                "reason": "Low confidence extraction",
-                                "confidence": extracted_data['confidence'],
-                                "review_status": "needs_review",
-                                "type": "low_confidence"
-                            })
-                            
-                    except Exception as save_error:
+                    if result.get("status") == "error":
                         failed += 1
-                        logger.error(f"Failed to save invoice {pdf_path.name}: {str(save_error)}")
+                        error_msg = result.get('message', 'Unknown error')
+                        logger.error(f"Failed to process {pdf_path.name}: {error_msg}")
                         await manager.broadcast({
                             "type": "error",
                             "file": pdf_path.name,
-                            "error": f"Save error: {str(save_error)}"
+                            "error": error_msg
                         })
+                        continue
+
+                    extracted_data = result.get('extracted_data', {})
+                    if not extracted_data:
+                        failed += 1
+                        logger.error(f"No data extracted from {pdf_path.name}")
+                        continue
+
+                    invoice_id = extracted_data.get('invoice_number')
+                    if not invoice_id:
+                        failed += 1
+                        logger.error(f"No invoice number found in {pdf_path.name}")
+                        continue
+
+                    # Upload to S3 with timeout
+                    try:
+                        async with asyncio.timeout(30.0):  # 30-second timeout for S3 upload
+                            with open(pdf_path, 'rb') as pdf_file:
+                                s3_result = process_invoice_and_save(pdf_file.read(), invoice_id)
+                    except asyncio.TimeoutError:
+                        failed += 1
+                        logger.error(f"S3 upload timeout for {pdf_path.name}")
+                        continue
+
+                    # Prepare database entry
+                    db_entry = {
+                        'invoice_number': invoice_id,
+                        'vendor_name': extracted_data.get('vendor_name', ''),
+                        'invoice_date': extracted_data.get('invoice_date', ''),
+                        'total_amount': float(extracted_data.get('total_amount', 0)),
+                        'status': 'valid' if extracted_data.get('confidence', 0) >= 0.7 else 'needs_review',
+                        'pdf_url': s3_result.get('pdf_url', '')
+                    }
+
+                    # Save to database with validation
+                    try:
+                        if all(db_entry.values()):  # Ensure all required fields have values
+                            db.insert_invoice(db_entry)
+                            processed += 1
+                            logger.info(f"Successfully processed invoice {pdf_path.name}")
+                        else:
+                            failed += 1
+                            logger.error(f"Invalid database entry for {pdf_path.name}: {db_entry}")
+                    except Exception as db_error:
+                        failed += 1
+                        logger.error(f"Database error for {pdf_path.name}: {str(db_error)}")
+                        continue
+
+                    # Handle low confidence cases
+                    if extracted_data.get('confidence', 0) < 0.7:
+                        save_anomaly({
+                            "file_name": pdf_path.name,
+                            "invoice_number": invoice_id,
+                            "vendor_name": extracted_data.get('vendor_name'),
+                            "reason": "Low confidence extraction",
+                            "confidence": extracted_data.get('confidence', 0),
+                            "review_status": "needs_review",
+                            "type": "low_confidence"
+                        })
+
+                except asyncio.TimeoutError:
+                    failed += 1
+                    logger.error(f"Processing timeout for {pdf_path.name}")
+                    await manager.broadcast({
+                        "type": "error",
+                        "file": pdf_path.name,
+                        "error": "Processing timed out"
+                    })
+                except Exception as process_error:
+                    failed += 1
+                    logger.error(f"Error processing {pdf_path.name}: {str(process_error)}")
+                    await manager.broadcast({
+                        "type": "error",
+                        "file": pdf_path.name,
+                        "error": str(process_error)
+                    })
 
             except Exception as e:
                 failed += 1
-                logger.error(f"Error processing {pdf_path.name}: {str(e)}")
+                logger.error(f"Unhandled error for {pdf_path.name}: {str(e)}")
                 await manager.broadcast({
                     "type": "error",
                     "file": pdf_path.name,
@@ -242,8 +282,12 @@ async def process_all_invoices():
                 })
             finally:
                 if temp_path.exists():
-                    temp_path.unlink()
+                    temp_path.unlink()  # Clean up temp file
 
+            # Add a small delay between files to prevent resource exhaustion
+            await asyncio.sleep(0.5)
+
+        # Broadcast final status
         await manager.broadcast({
             "type": "complete",
             "message": f"Processed {processed} files, {failed} failed",
@@ -260,11 +304,15 @@ async def process_all_invoices():
         }
 
     except Exception as e:
-        logger.error(f"Error in batch processing: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Batch processing failed: {str(e)}"
-        }
+        logger.error(f"Batch processing error: {str(e)}")
+        return {"status": "error", "message": f"Batch processing failed: {str(e)}"}
+    finally:
+        # Ensure any remaining temp files are cleaned up
+        for temp_file in Path("data/temp").glob("*.pdf"):
+            try:
+                temp_file.unlink()
+            except Exception as e:
+                logger.error(f"Failed to clean up temp file {temp_file}: {str(e)}")
 
 def save_invoice(invoice_data: dict):
     try:
@@ -521,9 +569,10 @@ async def get_invoice_pdf(invoice_id: str):
                 status_code=404,
                 detail=f"PDF URL not found for invoice {invoice_id}"
             )
-        
-        # Extract the S3 key from the URL
-        s3_key = f"invoices/{invoice_id}.pdf"
+
+        # Use invoice_number for S3 key since that's how we store them
+        s3_key = f"invoices/{invoice['invoice_number']}.pdf"
+        logger.debug(f"Fetching S3 object with key: {s3_key}")
         
         try:
             # Get the PDF from S3
@@ -534,19 +583,19 @@ async def get_invoice_pdf(invoice_id: str):
             )
             
             # Stream the PDF content
-            from fastapi.responses import StreamingResponse
             return StreamingResponse(
                 response['Body'].iter_chunks(),
                 media_type="application/pdf",
                 headers={
-                    "Content-Disposition": f'inline; filename="{invoice_id}.pdf"',
+                    "Content-Disposition": f'inline; filename="{invoice["invoice_number"]}.pdf"',
                     "Cache-Control": "no-cache"
                 }
             )
             
         except ClientError as e:
             error_code = e.response['Error']['Code']
-            if (error_code == 'NoSuchKey'):
+            if error_code == 'NoSuchKey':
+                logger.error(f"PDF not found in S3 bucket: {BUCKET_NAME}/{s3_key}")
                 raise HTTPException(
                     status_code=404,
                     detail=f"PDF not found in S3 for invoice {invoice_id}"
