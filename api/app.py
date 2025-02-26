@@ -618,12 +618,23 @@ async def upload_invoice(file: UploadFile = File(...)):
             temp_path.unlink()
 
 @app.get("/api/invoices")
-async def get_invoices():
-    """Get all invoices from the SQLite database."""
+async def get_invoices(
+    page: int = 1,
+    per_page: int = 10,
+    sort_by: str = "created_at",
+    order: str = "desc"
+):
+    """Get invoices from the SQLite database with pagination."""
     try:
-        logger.info("Fetching all invoices from database")
+        logger.info(f"Fetching invoices page {page}, {per_page} per page")
         db = InvoiceDB()
-        invoices = db.get_all_invoices()  # This now returns empty list on error
+        total_count = db.get_invoice_count()
+        invoices = db.get_invoices_paginated(
+            page=page,
+            per_page=per_page,
+            sort_by=sort_by,
+            order=order
+        )
         
         # Transform decimal/date values to be JSON serializable
         for invoice in invoices:
@@ -631,11 +642,27 @@ async def get_invoices():
             if isinstance(invoice.get('created_at'), datetime):
                 invoice['created_at'] = invoice['created_at'].isoformat()
         
-        logger.info(f"Successfully retrieved {len(invoices)} invoices from database")
-        return invoices
+        logger.info(f"Retrieved {len(invoices)} invoices for page {page}")
+        return {
+            "data": invoices,
+            "pagination": {
+                "current_page": page,
+                "per_page": per_page,
+                "total_items": total_count,
+                "total_pages": -(-total_count // per_page)  # Ceiling division
+            }
+        }
     except Exception as e:
         logger.error(f"Error fetching invoices from database: {str(e)}")
-        return []  # Return empty list instead of 500 error
+        return {
+            "data": [],
+            "pagination": {
+                "current_page": page,
+                "per_page": per_page,
+                "total_items": 0,
+                "total_pages": 0
+            }
+        }
 
 def load_json_file(filepath: Path) -> list:
     try:
@@ -812,16 +839,97 @@ async def update_invoice(invoice_id: str, update_data: InvoiceUpdate):
             detail=f"Error updating invoice: {str(e)}"
         )
 
+@app.get("/api/metrics")
+async def get_metrics():
+    """Get processing metrics and statistics."""
+    try:
+        db = InvoiceDB()
+        total_invoices = db.get_invoice_count()
+        
+        # Get status breakdown
+        status_counts = db.get_status_counts()
+        
+        # Get confidence metrics
+        confidence_metrics = db.get_confidence_metrics()
+        
+        # Get processing time metrics
+        time_metrics = db.get_processing_time_metrics()
+        
+        # Get last 24h metrics
+        recent_metrics = db.get_recent_metrics()
+        
+        return {
+            "total_invoices": total_invoices,
+            "status_breakdown": status_counts,
+            "confidence_metrics": confidence_metrics,
+            "processing_metrics": time_metrics,
+            "recent_activity": recent_metrics
+        }
+    except Exception as e:
+        logger.error(f"Error getting metrics: {str(e)}")
+        return {
+            "total_invoices": 0,
+            "status_breakdown": {},
+            "confidence_metrics": {},
+            "processing_metrics": {},
+            "recent_activity": {}
+        }
+
 @app.get("/api/anomalies")
-async def get_anomalies():
+async def get_anomalies(
+    page: int = 1,
+    per_page: int = 10,
+    status: Optional[str] = None
+):
+    """Get anomalies with pagination and filtering."""
     try:
         if not StorageConfig.ANOMALIES_FILE.exists():
-            return []
+            return {
+                "data": [],
+                "pagination": {
+                    "current_page": page,
+                    "per_page": per_page,
+                    "total_items": 0,
+                    "total_pages": 0
+                }
+            }
+
         with StorageConfig.ANOMALIES_FILE.open("r") as f:
-            return json.load(f)
+            all_anomalies = json.load(f)
+
+        # Filter by status if provided
+        if status:
+            all_anomalies = [a for a in all_anomalies if a.get('review_status') == status]
+
+        # Sort by timestamp descending
+        all_anomalies.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+        # Calculate pagination
+        total_items = len(all_anomalies)
+        total_pages = -(-total_items // per_page)  # Ceiling division
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        
+        return {
+            "data": all_anomalies[start_idx:end_idx],
+            "pagination": {
+                "current_page": page,
+                "per_page": per_page,
+                "total_items": total_items,
+                "total_pages": total_pages
+            }
+        }
     except Exception as e:
         logger.error(f"Error reading anomalies: {str(e)}")
-        return []
+        return {
+            "data": [],
+            "pagination": {
+                "current_page": page,
+                "per_page": per_page,
+                "total_items": 0,
+                "total_pages": 0
+            }
+        }
 
 if __name__ == "__main__":
     import uvicorn
