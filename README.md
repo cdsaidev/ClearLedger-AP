@@ -6,7 +6,27 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14.2.24-black.svg)](https://nextjs.org/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-412991.svg)](https://openai.com/)
 
+## Summary
+
 Accounts-payable automation platform that ingests vendor PDF invoices, runs a LangChain multi-agent pipeline, and stores structured results in SQLite with PDFs on AWS S3.
+
+### Screenshots
+
+**Dashboard** — KPIs, multi-agent pipeline overview, quick actions, and recent activity.
+
+![Clear Ledger AP dashboard](frontend-nextjs/public/assets/screenshot_1.png)
+
+**Upload** — Single PDF upload, batch processing, pipeline steps, and sample extraction result.
+
+![Upload and process invoices](frontend-nextjs/public/assets/screenshot_2.png)
+
+**Invoice registry** — Sortable table with confidence bars, validation status, and PDF links.
+
+![Invoice registry](frontend-nextjs/public/assets/screenshot_3.png)
+
+**Metrics** — Status breakdown, confidence analysis, and 24-hour activity.
+
+![Processing metrics](frontend-nextjs/public/assets/screenshot_4.png)
 
 ## What it does
 
