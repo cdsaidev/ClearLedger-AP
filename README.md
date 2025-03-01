@@ -169,13 +169,22 @@ sqlite3 invoices.db "SELECT COUNT(*) FROM invoice_metadata;"
 
 ## CI/CD
 
-GitHub Actions deploys the frontend Docker image on push to `main` (see `.github/workflows/frontend-deploy.yml`).
+GitHub Actions deploys the frontend to **Vercel** on push to `main` (see `.github/workflows/frontend-deploy.yml`).
 
-- Image: `chris9753/clear_ledger_nextjs_frontend:latest`
+**Required GitHub secrets:**
 
-**Required GitHub secrets:** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+| Secret | Description |
+|--------|-------------|
+| `VERCEL_TOKEN` | [Vercel account token](https://vercel.com/account/tokens) |
+| `VERCEL_ORG_ID` | Team/user ID from Vercel project settings |
+| `VERCEL_PROJECT_ID` | Project ID from Vercel project settings |
 
-**Optional repository variable:** `NEXT_PUBLIC_MAIN_API_URL` (production API URL baked into the Next.js build; defaults to `http://localhost:8000`)
+**Vercel project setup:**
+
+1. Import the repo in Vercel and set **Root Directory** to `frontend-nextjs`.
+2. Add `NEXT_PUBLIC_MAIN_API_URL` under **Environment Variables** (Production) pointing at your deployed backend API.
+
+You can also connect the repo directly in Vercel for automatic deploys; the GitHub Action is useful if you want deploys gated on CI or triggered manually.
 
 ## License
 

@@ -320,5 +320,14 @@
         "review_status": "complete",
         "original_path": "data/raw/invoices/invoice_3_price_variance.pdf",
         "file_name": "invoice_3_price_variance.pdf"
+    },
+    {
+        "status": "error",
+        "message": "'vendor_name'",
+        "extraction_time": 3.5539093017578125,
+        "validation_time": 0,
+        "matching_time": 0,
+        "review_time": 0,
+        "total_time": 3.5539093017578125
     }
 ]
