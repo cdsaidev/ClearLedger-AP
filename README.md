@@ -169,10 +169,13 @@ sqlite3 invoices.db "SELECT COUNT(*) FROM invoice_metadata;"
 
 ## CI/CD
 
-GitHub Actions builds and publishes Docker images on push (see `.github/workflows/`). Images:
+GitHub Actions deploys the frontend Docker image on push to `main` (see `.github/workflows/frontend-deploy.yml`).
 
-- `chris9753/clear_ledger_nextjs_backend:latest`
-- `chris9753/clear_ledger_nextjs_frontend:latest`
+- Image: `chris9753/clear_ledger_nextjs_frontend:latest`
+
+**Required GitHub secrets:** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+
+**Optional repository variable:** `NEXT_PUBLIC_MAIN_API_URL` (production API URL baked into the Next.js build; defaults to `http://localhost:8000`)
 
 ## License
 

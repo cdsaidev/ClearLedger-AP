@@ -11,6 +11,10 @@ RUN npm install
 # Copy the rest of the frontend files
 COPY . .
 
+# API URL is baked in at build time (override in CI via build-arg)
+ARG NEXT_PUBLIC_MAIN_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_MAIN_API_URL=$NEXT_PUBLIC_MAIN_API_URL
+
 # Build the Next.js app
 RUN npm run build
 
