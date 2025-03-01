@@ -1,49 +1,58 @@
-import Link from 'next/link';
+import Link from "next/link";
+import { useRouter } from "next/router";
+
+const NAV_ITEMS = [
+  { href: "/", label: "Dashboard" },
+  { href: "/upload", label: "Upload" },
+  { href: "/invoices", label: "Invoices" },
+  { href: "/review", label: "Review" },
+  { href: "/metrics", label: "Metrics" },
+  { href: "/anomalies", label: "Anomalies" },
+];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex space-x-8">
-                <Link 
-                  href="/upload" 
-                  className="text-gray-700 hover:text-blue-500 hover:border-blue-500 px-3 py-2 text-sm font-medium border-b-2 border-transparent"
-                >
-                  Upload
-                </Link>
-                <Link 
-                  href="/invoices" 
-                  className="text-gray-700 hover:text-blue-500 hover:border-blue-500 px-3 py-2 text-sm font-medium border-b-2 border-transparent"
-                >
-                  Invoices
-                </Link>
-                <Link 
-                  href="/review" 
-                  className="text-gray-700 hover:text-blue-500 hover:border-blue-500 px-3 py-2 text-sm font-medium border-b-2 border-transparent"
-                >
-                  Review
-                </Link>
-                <Link 
-                  href="/metrics" 
-                  className="text-gray-700 hover:text-blue-500 hover:border-blue-500 px-3 py-2 text-sm font-medium border-b-2 border-transparent"
-                >
-                  Metrics
-                </Link>
-                <Link 
-                  href="/anomalies" 
-                  className="text-gray-700 hover:text-blue-500 hover:border-blue-500 px-3 py-2 text-sm font-medium border-b-2 border-transparent"
-                >
-                  Anomalies
-                </Link>
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 gap-4">
+            <Link href="/" className="flex items-center gap-2.5 shrink-0">
+              <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold tracking-tight">CL</span>
               </div>
-            </div>
+              <span className="text-base font-semibold text-slate-900 hidden sm:inline">
+                ClearLedger AP
+              </span>
+            </Link>
+
+            <nav className="flex items-center gap-1 overflow-x-auto">
+              {NAV_ITEMS.map(({ href, label }) => {
+                const isActive =
+                  href === "/" ? router.pathname === "/" : router.pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+                      isActive
+                        ? "bg-brand-50 text-brand-700 border border-brand-200"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
         </div>
-      </nav>
-      <main className="flex-grow container mx-auto px-4 py-8">{children}</main>
+      </header>
+
+      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        {children}
+      </main>
     </div>
   );
 }

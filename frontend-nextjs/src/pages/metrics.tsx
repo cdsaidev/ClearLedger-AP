@@ -1,173 +1,160 @@
-import { useQuery } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
+import { useQuery } from "@tanstack/react-query";
+import { getMetrics } from "../../lib/api";
+import PageHeader from "../components/PageHeader";
+import StatCard from "../components/StatCard";
+import PipelineFlow from "../components/PipelineFlow";
 
-interface Metrics {
-  total_invoices: number;
-  status_breakdown: {
-    [key: string]: number;
-  };
-  confidence_metrics: {
-    average: number;
-    minimum: number;
-    maximum: number;
-    low_confidence_rate: number;
-  };
-  processing_metrics: {
-    average_seconds: number;
-    minimum_seconds: number;
-    maximum_seconds: number;
-    total_processed: number;
-  };
-  recent_activity: {
-    processed_24h: number;
-    low_confidence_24h: number;
-    valid_24h: number;
-    needs_review_24h: number;
-    avg_processing_time_24h: number;
-  };
-}
+const STATUS_COLORS: Record<string, string> = {
+  valid: "bg-emerald-500",
+  needs_review: "bg-orange-500",
+  failed: "bg-red-500",
+};
 
-// Function to fetch metrics from the API
-async function fetchMetrics(): Promise<Metrics> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_API_URL}/api/metrics`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch metrics');
-  }
-  return response.json();
+const STATUS_LABELS: Record<string, string> = {
+  valid: "Valid",
+  needs_review: "Needs review",
+  failed: "Failed",
+};
+
+function StatusBar({
+  label,
+  count,
+  total,
+  color,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+}) {
+  const pct = total > 0 ? (count / total) * 100 : 0;
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1.5">
+        <span className="text-slate-700">{label}</span>
+        <span className="font-semibold text-slate-900">{count}</span>
+      </div>
+      <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
 }
 
 export default function MetricsPage() {
-  const { 
-    data: metrics,
-    isLoading,
-    isError,
-    error,
-    refetch
-  } = useQuery({
-    queryKey: ['metrics'],
-    queryFn: fetchMetrics,
+  const { data: metrics, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["metrics"],
+    queryFn: getMetrics,
     retry: 2,
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    gcTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 30000,
+    gcTime: 5 * 60 * 1000,
   });
 
+  const total = metrics?.total_invoices ?? 0;
+  const breakdown = metrics?.status_breakdown ?? {};
+
   return (
-    <div className="max-w-7xl mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Metrics</h1>
-        <button 
-          onClick={() => refetch()}
-          disabled={isLoading}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
-        >
-          {isLoading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </div>
+    <>
+      <PageHeader
+        title="Processing metrics"
+        subtitle="Confidence scores, throughput, and status breakdown across the multi-agent pipeline."
+        actions={
+          <button onClick={() => refetch()} disabled={isLoading} className="btn-secondary">
+            {isLoading ? "Refreshing…" : "Refresh"}
+          </button>
+        }
+      />
 
       {isError && (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-          <p className="text-red-700">{error instanceof Error ? error.message : 'Failed to load metrics'}</p>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
+          {error instanceof Error ? error.message : "Failed to load metrics"}
         </div>
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="ml-2 text-gray-600">Loading metrics...</p>
+        <div className="flex justify-center py-16 text-sm text-slate-500">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent mr-3" />
+          Loading metrics…
         </div>
       ) : metrics ? (
         <div className="space-y-6">
-          {/* Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium text-gray-900">Total Invoices</h3>
-              <p className="mt-2 text-3xl font-semibold text-blue-600">{metrics.total_invoices}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Total invoices" value={metrics.total_invoices} />
+            <StatCard
+              label="Avg processing time"
+              value={`${metrics.processing_metrics.average_seconds.toFixed(1)}s`}
+              subtext={`${metrics.processing_metrics.minimum_seconds.toFixed(1)}s – ${metrics.processing_metrics.maximum_seconds.toFixed(1)}s`}
+            />
+            <StatCard
+              label="Avg confidence"
+              value={`${(metrics.confidence_metrics.average * 100).toFixed(1)}%`}
+              subtext={`Low confidence rate: ${(metrics.confidence_metrics.low_confidence_rate * 100).toFixed(1)}%`}
+            />
+            <StatCard
+              label="Processed (24h)"
+              value={metrics.recent_activity.processed_24h}
+              subtext={`${metrics.recent_activity.valid_24h} valid, ${metrics.recent_activity.needs_review_24h} review`}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card p-6">
+              <h2 className="text-base font-semibold text-slate-900">Status breakdown</h2>
+              <p className="text-sm text-slate-500 mb-5">Distribution after validation &amp; PO matching</p>
+              <div className="space-y-4">
+                {Object.entries(breakdown).map(([status, count]) => (
+                  <StatusBar
+                    key={status}
+                    label={STATUS_LABELS[status] ?? status}
+                    count={count}
+                    total={total}
+                    color={STATUS_COLORS[status] ?? "bg-slate-400"}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium text-gray-900">Processing Time</h3>
-              <p className="mt-2 text-3xl font-semibold text-green-600">{metrics.processing_metrics.average_seconds.toFixed(1)}s</p>
-              <p className="text-sm text-gray-500">Average</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium text-gray-900">Confidence Score</h3>
-              <p className="mt-2 text-3xl font-semibold text-purple-600">{(metrics.confidence_metrics.average * 100).toFixed(1)}%</p>
-              <p className="text-sm text-gray-500">Average</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium text-gray-900">Last 24h Activity</h3>
-              <p className="mt-2 text-3xl font-semibold text-orange-600">{metrics.recent_activity.processed_24h}</p>
-              <p className="text-sm text-gray-500">Invoices Processed</p>
+
+            <div className="card p-6">
+              <h2 className="text-base font-semibold text-slate-900 mb-5">Confidence analysis</h2>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: "Average", value: `${(metrics.confidence_metrics.average * 100).toFixed(1)}%`, color: "text-blue-600" },
+                  { label: "Maximum", value: `${(metrics.confidence_metrics.maximum * 100).toFixed(1)}%`, color: "text-emerald-600" },
+                  { label: "Minimum", value: `${(metrics.confidence_metrics.minimum * 100).toFixed(1)}%`, color: "text-red-600" },
+                  { label: "Low conf. rate", value: `${(metrics.confidence_metrics.low_confidence_rate * 100).toFixed(1)}%`, color: "text-orange-600" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="bg-slate-50 rounded-lg p-4 text-center border border-slate-100">
+                    <p className="text-xs text-slate-500 mb-1">{label}</p>
+                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Status Breakdown */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Status Breakdown</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(metrics.status_breakdown).map(([status, count]) => (
-                <div key={status} className="text-center">
-                  <p className="text-2xl font-semibold text-gray-900">{count}</p>
-                  <p className="text-sm text-gray-500 capitalize">{status}</p>
+          <div className="card p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-5">Last 24 hours</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              {[
+                { label: "Processed", value: metrics.recent_activity.processed_24h },
+                { label: "Valid", value: metrics.recent_activity.valid_24h },
+                { label: "Needs review", value: metrics.recent_activity.needs_review_24h },
+                { label: "Low confidence", value: metrics.recent_activity.low_confidence_24h },
+                { label: "Avg time", value: `${metrics.recent_activity.avg_processing_time_24h.toFixed(1)}s` },
+              ].map(({ label, value }) => (
+                <div key={label} className="text-center">
+                  <p className="text-2xl font-bold text-slate-900">{value}</p>
+                  <p className="text-xs text-slate-500 mt-1">{label}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Confidence Metrics */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Confidence Analysis</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-blue-600">{(metrics.confidence_metrics.average * 100).toFixed(1)}%</p>
-                <p className="text-sm text-gray-500">Average</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-green-600">{(metrics.confidence_metrics.maximum * 100).toFixed(1)}%</p>
-                <p className="text-sm text-gray-500">Maximum</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-red-600">{(metrics.confidence_metrics.minimum * 100).toFixed(1)}%</p>
-                <p className="text-sm text-gray-500">Minimum</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-yellow-600">{(metrics.confidence_metrics.low_confidence_rate * 100).toFixed(1)}%</p>
-                <p className="text-sm text-gray-500">Low Confidence Rate</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Last 24 Hours</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-blue-600">{metrics.recent_activity.processed_24h}</p>
-                <p className="text-sm text-gray-500">Processed</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-green-600">{metrics.recent_activity.valid_24h}</p>
-                <p className="text-sm text-gray-500">Valid</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-yellow-600">{metrics.recent_activity.needs_review_24h}</p>
-                <p className="text-sm text-gray-500">Needs Review</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-red-600">{metrics.recent_activity.low_confidence_24h}</p>
-                <p className="text-sm text-gray-500">Low Confidence</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-purple-600">{metrics.recent_activity.avg_processing_time_24h.toFixed(1)}s</p>
-                <p className="text-sm text-gray-500">Avg Processing Time</p>
-              </div>
-            </div>
-          </div>
+          <PipelineFlow showTitle showLegend={false} />
         </div>
       ) : (
-        <div className="text-center py-8">
-          <p className="text-gray-500">No metrics available.</p>
-        </div>
+        <div className="card p-10 text-center text-slate-500">No metrics available.</div>
       )}
-    </div>
+    </>
   );
 }
