@@ -183,11 +183,11 @@ GitHub Actions deploys the frontend to **Vercel** on push to `main` (see `.githu
 
 1. Import the repo in Vercel.
 2. **Settings → General → Root Directory** → set to `frontend-nextjs` → Save.  
-   If this stays at the repo root, Vercel sees `api/app.py` (`FastAPI`) and CI/local `vercel build` fails with “No FastAPI entrypoint found”.
+   If this stays at the repo root, Vercel sees `api/app.py` (`FastAPI`) and builds fail.  
+   **Important:** With Root Directory set to `frontend-nextjs`, the GitHub workflow must run `vercel` commands from the **repository root**, not `cd frontend-nextjs` — otherwise Vercel looks for `frontend-nextjs/frontend-nextjs` and errors.
 3. Add `NEXT_PUBLIC_MAIN_API_URL` under **Environment Variables** (Production) pointing at your deployed backend API.
 
-**Why the CI workflow avoids `vercel build`:**  
-`vercel build` uses the Vercel project’s root directory from the cloud (often the monorepo root after `vercel link` at repo root). That directory contains `api/app.py`, so Vercel picks the FastAPI builder instead of Next.js. The workflow uses `vercel deploy --archive=tgz` from `frontend-nextjs/` so only the Next.js app is uploaded and built on Vercel.
+**CI workflow:** Runs `vercel pull`, `vercel build`, and `vercel deploy --prebuilt` from the repo root. Vercel applies the Root Directory setting automatically.
 
 You can also connect the repo directly in Vercel for automatic deploys; the GitHub Action is useful if you want deploys gated on CI or triggered manually.
 

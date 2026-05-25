@@ -16,7 +16,6 @@ concurrency:
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  APP_DIR: frontend-nextjs
 
 jobs:
   deploy:
@@ -29,13 +28,13 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      # Pull env vars into frontend-nextjs/.vercel (must run inside app dir)
+      # Run from repo root. Vercel project Root Directory must be "frontend-nextjs"
+      # in dashboard — do NOT also cd into frontend-nextjs here (that doubles the path).
       - name: Pull Vercel environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: ${{ env.APP_DIR }}
 
-      # Do NOT use `vercel build` here — it scans the linked project root (repo root),
-      # finds api/app.py (FastAPI), and fails. Deploy only the frontend folder instead.
-      - name: Deploy to Vercel
-        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --archive=tgz
-        working-directory: ${{ env.APP_DIR }}
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
